@@ -1,0 +1,476 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage{fontspec}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{geometry}
+\geometry{margin=2.4cm}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\usepackage{xltxtra}
+
+% --- CJK 字体 (Noto Serif/Sans CJK SC) ---
+\setmainfont{Noto Serif CJK SC}
+\newfontfamily\cjkhei{Noto Sans CJK SC}
+\newcommand{\hei}[1]{{\cjkhei #1}}
+
+\linespread{1.4}
+\setlength{\parskip}{5pt}
+
+% --- 启用 XeTeX 原生 CJK 断行(无需 xeCJK) ---
+\XeTeXlinebreaklocale "zh"
+\XeTeXlinebreakskip = 0pt plus 1pt minus 0.1pt
+\XeTeXlinebreakpenalty = 0
+
+% --- 定理环境 ---
+\theoremstyle{plain}
+\newtheorem{theorem}{定理}
+\newtheorem{proposition}{命题}
+\newtheorem{corollary}{推论}
+\newtheorem{lemma}{引理}
+\newtheorem{example}{例}
+\theoremstyle{definition}
+\newtheorem{assumption}{假设}
+\newtheorem{remark}{注记}
+
+% --- 常用记号 ---
+\newcommand{\Pmd}{P_{\mathrm{md}}}
+\newcommand{\Pfa}{P_{\mathrm{fa}}}
+\newcommand{\Pcol}{P_{\mathrm{col}}}
+\newcommand{\thr}{\eta}
+\newcommand{\eloc}{\varepsilon_{\mathrm{loc}}}
+\newcommand{\CVaR}{\mathrm{CVaR}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\Prob}{\mathbb{P}}
+\newcommand{\bigT}{T}
+\newcommand{\defeq}{\triangleq}
+\newcommand{\spec}{\mathbf{X}}
+
+\title{\hei{从时频定位到风险敏感接入：\\面向宽带认知无线电的置信图闭环}\\[4pt]
+\large （中文译稿，供查阅；以英文 LaTeX 版为投稿正本）}
+\author{}
+\date{}
+
+\begin{document}
+\maketitle
+
+\noindent\textbf{\hei{说明：}}本文是英文投稿稿 \emph{From Time--Frequency
+Localization to Risk-Sensitive Access: A Belief-Map Closed Loop for Wideband
+Cognitive Radio} 的中文译稿，用于阅读与核对。数学记号、定理编号与英文版一致；
+正式投稿以英文版为准。
+
+\begin{abstract}
+\noindent 基于深度强化学习（DRL）的动态频谱接入（DSA）方法几乎无一例外地假设
+宽带频谱被预先划分为固定的信道栅格，每个信道处于二元的好/坏状态。这一假设在真实
+宽带环境中失效——主用户（PU）发射占据\emph{任意}的中心频率、带宽与时长，而这正是
+时频（TF）定位所处理的情形。本文闭合这两者：感知模块在时频平面上输出\emph{连续的
+占用置信图}，直接作为接入智能体的状态；智能体选择一个时频资源块。我们将问题建模为
+带学习软占用观测的\emph{部分可观控制问题}，并分析：（i）将定位误差
+$(\Pmd,\Pfa)$ 映射到 PU 碰撞概率与吞吐损失的传播界，由此得到"感知精度/吞吐/
+PU 保护"三方权衡及其刻画的工作点；（ii）一个信息精化结论，表明在相同动作空间下
+置信状态不弱于更粗的固定信道状态；（iii）一个风险敏感（CVaR）接入形式，其工作点
+可证至少与均值约束同样保守。一个针对表格代理的 stylized regret 分析将消失的学习
+代价与不可由学习消除的感知代价分离。在连续带宽、非栅格 PU 模型上的仿真证实了预测
+的工作点与尾部风险削减，并表明接入性能由\emph{频率}定位精度主导。
+\end{abstract}
+
+\section{符号说明（公式中字母的含义）}
+为便于查阅，下表汇总全文公式中出现的主要符号及其含义。
+
+\renewcommand{\arraystretch}{1.3}
+\begin{longtable}{@{}p{3.2cm} p{12.3cm}@{}}
+\toprule
+符号 & 含义\\
+\midrule
+\endfirsthead
+\toprule 符号 & 含义\\ \midrule \endhead
+\multicolumn{2}{@{}l}{\textbf{\hei{感知与占用}}}\\
+$\spec$ & 宽带幅度谱图（感知阶段的原始观测）\\
+$N_f,\;N_t$ & 时频平面在频率、时间方向上的离散 cell 数\\
+$O_{m,n}$ & 真实占用图：第 $(m,n)$ 个 cell 被 PU 占用时为 $1$，否则为 $0$\\
+$B,\;B_{m,n}$ & 占用置信图及其逐 cell 值 $\in[0,1]$（感知器输出的软占用，近似充分统计量）\\
+$\thr$ & 置信判决阈值：$B_{m,n}\ge\thr$ 判为占用\\
+$\Pmd(\thr)$ & 漏检概率：真占用 cell 被判为空闲的概率（随 $\thr$ 增大而不减）\\
+$\Pfa(\thr)$ & 虚警概率：真空闲 cell 被判为占用的概率（随 $\thr$ 增大而不增）\\
+$\rho$ & ROC 关系函数：$\Pmd=\rho(\Pfa)$，可微、严格递减\\
+\midrule
+\multicolumn{2}{@{}l}{\textbf{\hei{频率定位}}}\\
+$I_k=[f_{\mathrm{lo}}^k,f_{\mathrm{hi}}^k]$ & 第 $k$ 个 PU 发射在一帧内占用的真实频率区间\\
+$\hat I_k$ & 定位器输出的估计频率区间\\
+$\mathrm{IoU}_k$ & 第 $k$ 个发射的频率区间交并比 $\in[0,1]$（越大越准）\\
+$\eloc$ & 平均频率定位误差，$\eloc=1-\E[\mathrm{IoU}_k]$\\
+$c_{\mathrm{md}},c_{\mathrm{fa}}$ & 将定位误差 $\eloc$ 映射到 cell 级 $\Pmd,\Pfa$ 的几何常数（$>0$）\\
+$r_{\mathrm{md}},r_{\mathrm{fa}}$ & 理想定位区间下的残余检测误差（纯能量阈值分量）\\
+\midrule
+\multicolumn{2}{@{}l}{\textbf{\hei{接入与状态}}}\\
+$s_t$ & 接入状态：近 $H$ 帧置信图的堆叠\\
+$H$ & 状态历史窗口长度（堆叠帧数）\\
+$a$ & 接入动作：所选时频资源块（中心频率、带宽、起止时间、功率）\\
+$\mathcal{A}(a)$ & 动作 $a$ 覆盖的 cell 集合\\
+$\mathcal{O}(a)$ & 与所选块重叠的真占用 cell 集合\\
+$A_{\mathrm{idle}}$ & 所选块内真空闲 cell 数\\
+$\bar r$ & 单个真空闲 cell 被接入时的归一化速率\\
+$\kappa$ & 碰撞（重传）惩罚系数\\
+$R(\thr)$ & 吞吐目标，$R=\bar r A_{\mathrm{idle}}(1-\Pfa)-\kappa\Pcol$\\
+$\Pcol(\thr)$ & 碰撞概率（SU 块与占用 cell 重叠的概率）\\
+$\thr^\star$ & 最优工作点（使吞吐最大且满足约束的阈值）\\
+$\thr_{\min}$ & 可行域左端点（满足 PU 保护约束的最小阈值）\\
+$P_{\mathrm{col}}^{\max}$ & PU 保护预算（允许的最大碰撞）\\
+$R^\circ$ & 完美感知 oracle 的吞吐（理论上界）\\
+\midrule
+\multicolumn{2}{@{}l}{\textbf{\hei{奖励与风险}}}\\
+$r(s_t,a_t)$ & 单步奖励（吞吐 $-$ 碰撞惩罚 $-$ 不确定性惩罚）\\
+$\lambda_c,\lambda_u$ & 碰撞惩罚、不确定性惩罚的权重\\
+$\mathcal{U}$ & 不确定性惩罚项（所选块内占用置信的伯努利方差和）\\
+$\gamma$ & 折扣因子\\
+$\pi,\;\pi^\star$ & 接入策略及其最优\\
+$V^\pi$ & 策略 $\pi$ 的价值（期望折扣回报）\\
+$Z_{\mathrm{col}}^W$ & 碰撞窗口变量：长度为 $W$ 的非重叠窗口内的碰撞累计数\\
+$W$ & CVaR 所用的窗口长度（固定，与时间跨度无关）\\
+$\CVaR_\beta[\cdot]$ & 尾部水平为 $\beta$ 的条件风险价值（$\beta\to1$ 退化为均值）\\
+$\thr^\star_{\CVaR}$ & CVaR 约束下的最优工作点\\
+\midrule
+\multicolumn{2}{@{}l}{\textbf{\hei{学习与 regret}}}\\
+$\mathrm{Reg}(T)$ & 时间跨度 $T$ 内相对分段最优策略的累计遗憾\\
+$T$ & 时间跨度（决策步数）\\
+$\mathsf{SA}$ & 瓦片编码后有效状态-动作空间的大小\\
+$\Upsilon_T$ & 分段平稳过程在 $[0,T]$ 内的变化点数\\
+$C_1,C_2$ & regret 上界中的常数（依赖噪声尺度、$\bar r$、$\kappa$）\\
+$\Pi_{\mathrm{bel}},\Pi_{\mathrm{dis}}$ & 置信状态、固定信道状态下的策略类\\
+$g(\cdot)$ & 把置信图粗化为固定信道状态的可测函数\\
+\bottomrule
+\end{longtable}
+
+\vspace{4pt}
+\noindent\small 注：$\E[\cdot]$、$\Prob(\cdot)$ 分别为期望与概率；$\defeq$ 表示"定义为"；$\mathbf{1}\{\cdot\}$ 为示性函数。\normalsize
+
+\section{引言}
+
+\subsection{两条研究线}
+宽带认知无线电领域存在两条各自成熟、却互不衔接的研究线。
+
+\textbf{\hei{第一条：时频定位（TFL）。}}它把宽带频谱图当作图像，用目标检测器为每个
+发射输出一个描述中心频率、带宽、起止时间的边界框。由于宽带频谱图与图像目标检测结构
+相似，一系列检测器被改造用于 TFL，包括基于区域与 YOLO 系的架构、解决 RF 发射多样长宽
+比导致的先验锚框失配的无锚关键点检测器，以及在发射于时频平面重叠时仍鲁棒的
+transformer 主干。这条线持续提升了宽带传感器描述占用的精度与鲁棒性。然而它\emph{止步
+于感知}：产出丰富的、连续的、带不确定性的频谱描述后便不再前进，接入决策被排除在外。
+
+\textbf{\hei{第二条：基于 DRL 的动态频谱接入（DSA）。}}它学习信道选择策略，但几乎
+无一例外地假设宽带频谱已被预划分为固定信道栅格，每个信道处于二元的好/坏状态。
+
+\subsection{缺口}
+这两条线被一个很少被审视的假设隔开。在 CBRS、ISM 这类共享频段，主用户的中心频率与
+子信道划分随业务需求和信道状态\emph{自适应}变化，因此预设固定信道化的方法会失效：
+占用可能与栅格不对齐，单个栅格 cell 跨越 PU 边界，迫使智能体要么碰撞、要么放弃可用
+频谱。\emph{据我们所知，尚无工作}把定位器产出的\emph{连续、带不确定性}的时频占用估计
+\emph{喂入}接入决策作为智能体状态，也没有分析定位器误差如何传播到接入性能与 PU 保护。
+闭合并分析这个环，正是本文的主题。
+
+\subsection{贡献}
+\begin{enumerate}[leftmargin=*]
+\item \textbf{\hei{置信图闭环。}}将联合感知接入建模为以连续时频占用为状态的部分可观
+控制问题，由两时间尺度架构实现，耦合监督感知层与强化接入层。
+\item \textbf{\hei{误差传播分析与三方权衡。}}将 cell 级定位误差 $(\Pmd,\Pfa)$ 映射
+到 PU 碰撞与吞吐，得到三方权衡并刻画工作点 $\thr^\star$（定理~\ref{thm:trade}），
+并给出"定位代价"的线性界（推论~\ref{cor:price}）。进一步，借助频率定位误差模型，
+将定位精度（IoU）直接联系到接入吞吐（推论~\ref{cor:loc}）。
+\item \textbf{\hei{基于分布式评论器的风险敏感接入。}}将接入建模为带尾部风险（CVaR）
+约束的\emph{分布式} RL 问题，其工作点可证至少与均值约束同样保守
+（定理~\ref{thm:cvar}，推论~\ref{cor:cvar}）。
+\item \textbf{\hei{信息精化与 stylized regret 分析。}}在相同动作空间下置信状态不弱于
+更粗的固定信道表示（命题~\ref{prop:suff}），在栅格错位实例上有严格差距
+（例~\ref{ex:gap}）；并针对表格代理，将 regret 分离为消失的学习项与策略无关的感知项
+（定理~\ref{thm:regret}）。后者是 stylized 分析，并非对深度智能体的保证。
+\item \textbf{\hei{验证。}}在连续带宽、非栅格 PU 模型上确认预测工作点与尾部风险削减，
+并证实接入性能由频率定位精度主导而非时间。
+\end{enumerate}
+
+\section{相关工作}
+我们沿三股梳理：TFL 感知、基于 DRL 的接入、联合感知接入；每股结尾给出本文的区别。
+
+\textbf{\hei{TFL 感知。}}基于扫描的宽带感知按已知信道化把频谱分为子带并在各子带做窄带
+检测；在共享频段，占用与子信道随业务自适应，预设固定信道化的方法失效。TFL 正是为去掉
+该假设而提出：把幅度谱图当作图像、做目标检测，可同时估计每个发射的时频支撑。检测器谱系
+依次为 Faster-RCNN/YOLO $\to$ 无锚关键点 $\to$ transformer 主干。\emph{本文区别：}
+这些工作\emph{都止步于感知}，输出框（或经非极大值抑制后的硬判决），从不与接入策略耦合；
+我们保留检测器的\emph{软}输出作为置信状态并闭合到接入。
+
+\textbf{\hei{基于 DRL 的接入。}}从多信道 Q 学习、部分可观下的循环 Q 网络，到 actor-critic
+与频谱聚合等，逐步增强；但\emph{几乎无一例外}地以固定信道栅格为状态。\emph{本文区别：}
+我们的状态是连续时频资源，并分析感知误差如何传播到接入。
+
+\textbf{\hei{联合感知接入。}}最接近的工作联合设计感知与接入，但通常优化单信道沿时间轴的
+感知时长/阈值权衡，或在固定信道上联合，仍是离散状态。\emph{本文区别：}我们在二维连续
+时频平面上操作，由学习定位器驱动。
+
+\section{系统模型与问题建模}
+
+\textbf{\hei{隐藏状态}}为真实 PU 占用与底层发射参数，按（分段平稳）马尔可夫过程演化。
+\textbf{\hei{观测}}为宽带谱图 $\spec$ 与发射后的一比特 ACK/NACK。感知层把谱图映射为
+逐 cell 软占用估计——\emph{置信图} $B\in[0,1]^{N_f\times N_t}$。我们强调 $B$ 是
+\emph{学习得到的软占用观测特征}，并非精确贝叶斯后验，而是接入决策的\emph{近似充分统计量}。
+
+\textbf{\hei{置信度与判决阈值（关键澄清）。}}具体而言，$B_{m,n}$ 就是时频定位器的
+\emph{检测置信度}栅格化到 cell 网格上的结果：每个估计发射框带一个置信度分数，$B_{m,n}$
+取覆盖该 cell 的框的（边缘羽化的）分数，无框处取较低的背景值。我们\emph{刻意保留}这一软
+置信 $B$ 而\emph{不做}非极大值抑制（NMS），从而保留接入阶段要利用的感知不确定性。判决阈值
+$\thr\in[0,1]$ 正是施加在定位器置信度 $B_{m,n}$ 上的：$B_{m,n}\ge\thr$ 判占用、避开，否则
+判空闲、可接入。漏检 $\Pmd$ 与虚警 $\Pfa$ 因此定义为"$B_{m,n}$ 与 $\thr$ 比较"的条件概率。
+有两个因素共同决定 $(\Pmd,\Pfa)$：\emph{置信阈值} $\thr$（软分数在何处截断）与框的
+\emph{几何精度}（框的频率支撑与真实发射的吻合程度，由后文 IoU 误差 $\eloc$ 度量）。
+定理~\ref{thm:trade} 对 $\thr$ 优化，假设~\ref{as:loc} 刻画几何分量，二者的分离在
+式~\eqref{eq:loc2cell} 中显式给出。
+
+\textbf{\hei{接入状态}}为该特征的近期历史堆叠：
+\[
+s_t=(B_{t-H+1},\dots,B_t)\in[0,1]^{H\times N_f\times N_t},
+\]
+这一连续、带不确定性的状态正是相对既往 DRL-DSA（二元固定信道状态）的根本差异。由于 $B$
+是近似而非精确后验，本问题是\emph{带学习观测特征的部分可观控制问题}，而非严格贝叶斯意义
+上的置信 MDP；第~\ref{sec:theory} 节的理论针对该表示陈述，不假设精确置信递推。
+
+\textbf{\hei{接入模型与帧结构（关键）。}}SU 采用"先感知后接入"的帧：感知阶段估计占用的
+频率范围，\emph{同一帧}的接入阶段在其判为空闲的频率上发射。因两阶段共享该帧，时间对齐
+是给定的，接入决策取决于\emph{哪些频率}空闲——这使得\emph{频率}定位精度（而非时间范围）
+成为决定接入性能的量（第~\ref{sec:theory} 节形式化）。
+
+\textbf{\hei{奖励}}为不确定性感知形式：奖励吞吐、惩罚 PU 碰撞、并对向低置信区域发射加罚。
+其中不确定性项与风险敏感目标的联系在第四节给出（作为风险代理，仅在条件独立与线性奖励下
+近似等价于均值-方差准则）。
+
+\section{LA-JSSA 框架}
+两时间尺度架构实现上述部分可观控制问题：缓慢自适应的监督\emph{感知层}产出占用置信图 $B$，
+快速的\emph{接入层}由强化学习学习策略。方法含三大支柱：\textbf{M1}=分布式 RL + CVaR
+安全约束（主创新）；\textbf{M2}=卷积-频率 + LRU-时间编码器；\textbf{M3}=自适应动作分辨率。
+感知层采用无锚检测器并\emph{不做}非极大值抑制，从而保留逐 cell 的软置信。架构图展示数据流
+$r\to\spec\to B\to s\to a$ 如何前向通过网络，并由环境的 ACK/碰撞反馈返回到定位器与
+风险约束评论器，从而闭合感知-接入环。
+
+\section{理论分析}
+\label{sec:theory}
+
+由于单个可处理的定理无法同时刻画学习型检测器、连续控制与有限时间学习动态，我们通过一个
+有意的\emph{抽象层级}来分析：真实系统 $\to$ 置信图 $\to$ 固定策略评估 $\to$ 表格代理。
+三类分析回答关于同一系统的\emph{不同}问题，且我们事先声明各自声称什么、不声称什么：
+\begin{itemize}[leftmargin=*]
+\item \textbf{\hei{工作点分析}}（定理~\ref{thm:trade}、\ref{thm:cvar}）：在固定动作几何下，
+对置信阈值 $\thr$ 做\emph{固定策略评估}，刻画静态工作点；不涉及学习过程。
+\item \textbf{\hei{表示分析}}（命题~\ref{prop:suff}）：在\emph{相同动作空间}下，对置信图状态
+与更粗固定信道状态做信息论比较；关乎可\emph{表示}什么，而非如何学习。
+\item \textbf{\hei{学习分析}}（定理~\ref{thm:regret}）：对接入问题的\emph{表格代理}给出有限
+时间 regret；提供学习代价结构的定性洞见，\emph{并非}对深度智能体的保证——深度智能体仅作为
+代理的启发式求解器。
+\end{itemize}
+
+\subsection{从频率定位到 cell 级误差}
+接入阶段消费的是\emph{时频定位器}的输出，而非逐信道能量检测器。帧结构简化了关键量：同一帧内，
+感知阶段估计哪些\emph{频率}范围空闲，接入阶段复用这些范围。发射的时间支撑由帧边界给定并提供给
+两阶段；定位器需要钉住的是每个发射的\emph{频率}范围——频率定位误差才会导致接入阶段碰撞（低估
+占用）或浪费频谱（高估占用）。
+
+\begin{assumption}[频率定位误差模型]
+\label{as:loc}
+设某真实 PU 发射在一帧内占用的频率区间为 $I_k=[f_{\mathrm{lo}}^k,f_{\mathrm{hi}}^k]$，
+定位器输出估计 $\hat I_k$。以一维重叠度衡量频率定位精度：
+\[
+\mathrm{IoU}_k\!\defeq\!\frac{|I_k\cap\hat I_k|}{|I_k\cup\hat I_k|}\in[0,1],
+\qquad \eloc\defeq 1-\E[\mathrm{IoU}_k].
+\]
+将 $\hat I_k$ 栅格化到 $N_f$ 个频率 cell 并以 $\thr$ 阈值化置信后，诱导的逐 cell 漏检/虚警
+满足
+\begin{equation}
+\Pmd(\thr)\le c_{\mathrm{md}}\eloc+r_{\mathrm{md}}(\thr),\quad
+\Pfa(\thr)\le c_{\mathrm{fa}}\eloc+r_{\mathrm{fa}}(\thr),
+\label{eq:loc2cell}
+\end{equation}
+其中 $r_{\mathrm{md}},r_{\mathrm{fa}}$ 是理想定位区间的残余检测误差（纯能量阈值分量），
+$c_{\mathrm{md}},c_{\mathrm{fa}}>0$ 为几何常数。故收紧频率定位（更高 IoU、更小 $\eloc$）
+同时降低两个 cell 级误差地板。时间支撑误差不出现：它被感知与接入阶段共享的帧对齐吸收。
+\end{assumption}
+
+\subsection{误差传播与三方权衡}
+
+\begin{lemma}[碰撞界]
+\label{lem:col}
+固定 SU 动作 $a$，设 $\mathcal{O}(a)$ 为与所选块重叠的真占用 cell 集合。在
+假设~\ref{as:loc} 下，分布无关的联合界成立：
+$\Pcol(\thr)\le|\mathcal{O}(a)|\,\Pmd(\thr)$；若进一步逐 cell 漏检条件独立（或正相关），
+可收紧为 $1-(1-\Pmd)^{|\mathcal{O}(a)|}$，两者一阶一致。
+\end{lemma}
+
+\begin{theorem}[固定动作几何下的三方权衡与工作点]
+\label{thm:trade}
+在假设（cell 级误差、ROC、固定动作几何、单峰吞吐）下，吞吐
+$R(\thr)=\bar r A_{\mathrm{idle}}(1-\Pfa(\thr))-\kappa\Pcol(\thr)$ 满足：
+(i) 可行集 $\{\thr:\Pcol\le\Pcol^{\max}\}$ 为上区间 $[\thr_{\min},1]$；
+(ii) 经 ROC 关系把吞吐参数化为一条权衡曲线；
+(iii) 一阶条件 $\bar r A_{\mathrm{idle}}\Pfa'(\thr)=-\kappa\Pcol'(\thr)$ 在拟凹假设下给出
+全局最优 $\thr^\star$，投影到可行区间即得。若无拟凹假设，则结论仅作为一阶/边界刻画成立，
+不声称全局最优。
+\end{theorem}
+
+\begin{corollary}[定位的接入代价（线性界）]
+\label{cor:price}
+最优吞吐相对完美感知 oracle 的损失被 $\thr^\star$ 处的虚警率线性控制：
+$R^\circ-R(\thr^\star)\le \bar r A_{\mathrm{idle}}\Pfa(\thr^\star)+\kappa\Pcol^{\max}$。
+\end{corollary}
+
+\begin{corollary}[定位误差的接入代价]
+\label{cor:loc}
+结合推论~\ref{cor:price} 与频率定位误差模型~\eqref{eq:loc2cell}，吞吐差距被平均频率定位
+误差 $\eloc=1-\E[\mathrm{IoU}]$ 控制：
+\[
+R^\circ-R(\thr^\star)\le \bar r A_{\mathrm{idle}}\big(c_{\mathrm{fa}}\eloc+r_{\mathrm{fa}}(\thr^\star)\big)+\kappa\Pcol^{\max}.
+\]
+故频率定位 IoU 每提升一单位，线性地换回接入吞吐。这正是"更精的频率定位——时频定位中与接入
+相关的分量——直接改善下游接入"的意义，闭合标题所述之环。
+\end{corollary}
+
+\subsection{风险敏感（CVaR）工作点}
+定理~\ref{thm:trade} 约束的是\emph{期望}碰撞。单帧碰撞是近退化的伯努利事件，在其上 CVaR 退化
+为缩放均值；唯有按时间聚合后尾部才有意义。故定义\emph{碰撞窗口变量}
+$Z_{\mathrm{col}}^W=\sum_{t=1}^W \mathrm{Col}_t$（固定长度、非重叠窗口），并以其尾部施加 CVaR
+约束。
+
+\begin{theorem}[CVaR 工作点的保守性]
+\label{thm:cvar}
+在相应假设下，对任意尾部水平 $\beta\in(0,1)$，CVaR 可行阈值至少与均值可行阈值同样保守：
+$\thr^\star_{\CVaR}\ge\thr^\star$；且当碰撞回报趋于确定（定位变锐或 $\beta\to1$）时
+$\thr^\star_{\CVaR}\to\thr^\star$。
+\end{theorem}
+\noindent\emph{思路：}由相干风险性质 $\CVaR_\beta[Z]\ge\E[Z]$，CVaR 约束严于均值约束；又两者
+随 $\thr$ 单调不增，各自定义上可行区间，更紧者左端点更大，故得结论。
+
+\begin{corollary}[一阶保守裕度]
+\label{cor:cvar}
+若 $\Pcol$ 在 $\thr^\star$ 可微且均值约束在此处有效，则一阶近似下保守裕度约为碰撞尾部展宽除以
+碰撞灵敏度（局部估计，不声称全局成立）。
+\end{corollary}
+
+\subsection{信息精化：置信状态的充分性}
+在\emph{相同}连续动作空间下，比较置信图状态 $s$ 与把时频平面摘要为 $K$ 块的固定信道状态。
+
+\begin{proposition}[信息精化]
+\label{prop:suff}
+若固定信道状态是置信图的确定性（可测）函数 $s_{\mathrm{dis}}=g(s)$，则对应策略类满足
+$\Pi_{\mathrm{dis}}\subseteq\Pi_{\mathrm{bel}}$，从而
+$\sup_{\Pi_{\mathrm{bel}}}V\ge\sup_{\Pi_{\mathrm{dis}}}V$（控制价值的数据处理/信息单调不等式）。
+\end{proposition}
+\noindent 我们强调\emph{动作空间相同}——都是允许子块放置的连续资源块选择；两类仅在所\emph{条件}
+的状态上不同。粗策略并非被禁止选用细粒度动作，而是其状态无法\emph{为}该动作提供信息。
+
+\begin{example}[栅格错位下的严格差距]
+\label{ex:gap}
+设单个 PU 发射横跨某固定信道块内部、占该块比例 $\delta\in(0,1)$。任何块级策略只能整块处理：
+接入则按 $\delta$ 碰撞，放弃则浪费空闲比例 $1-\delta$；置信图策略分辨子块边界，仅接入空闲部分。
+所得价值差距至少为 $\bar r(1-\delta)A_{\mathrm{cell}}-\kappa\delta$，在一段 $\delta$ 上严格为正。
+\end{example}
+
+\subsection{分段平稳动态下的 stylized regret 分析}
+下面的 regret 结果有意针对接入问题的\emph{stylized 表格代理}（瓦片编码的有限状态-动作 + 滑窗
+上置信指标），而非第四节带函数逼近的深度智能体。它\emph{不是}对深度 CVaR 评论器的保证；其用途是
+在可处理模型中揭示我们预期会延续的定性结构：消失的学习代价 + 由感知误差设定的不消失地板。
+
+\begin{theorem}[regret：学习项加策略无关的感知项]
+\label{thm:regret}
+在相应假设（含\emph{平稳、策略无关的感知误差}：定位器为固定感知信道、智能体不去协同调整）下，
+滑窗上置信策略相对分段最优置信策略的 regret 满足
+\[
+\mathrm{Reg}(\bigT)\le
+\underbrace{C_1\sqrt{\mathsf{SA}\,\bigT\,\Upsilon_\bigT\log\bigT}}_{\text{学习项（次线性）}}
++\underbrace{C_2\,\bigT\big(\Pmd(\thr^\star)+\Pfa(\thr^\star)\big)}_{\text{感知项（线性）}}.
+\]
+当 $\Upsilon_\bigT=o(\bigT/\log\bigT)$ 时第一项为 $o(\bigT)$；第二项是由固定感知信道在
+$\thr^\star$ 处设定的\emph{策略无关}差距——在此模型下感知误差以平稳可加偏移进入奖励，而非通过
+状态转移核，故该类内任何策略都无法消除它。我们不声称在允许智能体协同调整定位器时该差距仍不可约。
+\end{theorem}
+\noindent\emph{思路：}按分段平稳切分时间轴，把 regret 分解为学习项与感知项；可加分解的合法性恰由
+"平稳、策略无关的感知误差"假设保证。学习项用单段 UCB regret（标准滑窗 UCB 分析）加跨段 Cauchy-Schwarz
+求和；感知项用引理~\ref{lem:col} 给上界，并在有界单误差代价模型下给同阶下界，使"线性"严格。
+洞见：学习代价随时间摊薄而消失，感知代价不消失——故改进定位器是缩小后者的唯一杠杆。
+
+\section{仿真结果}
+我们在连续带宽、非栅格 PU 模型上评估六个问题（Q1--Q6），纯 numpy 实现。
+
+\textbf{\hei{Q1（工作点）。}}经验工作点 $\thr^\star_{\text{sim}}$ 与解析预测 $\thr^\star_{\text{analytic}}$
+完全吻合（均为 $0.85$）；经验 ROC 验证 $\Pmd$ 升、$\Pfa$ 降的单调性。
+
+\textbf{\hei{Q2（置信状态价值与基线对比）。}}在相同环境、状态、离散动作集下比较七种方法：随机接入（下界）、
+贪心 min-belief、固定信道 DQN（既往工作前提）、连续置信 DQN（均值约束）、Lagrangian 策略梯度
+（PPO 风格）基线、LA-JSSA、完美感知 oracle（上界）。在该紧凑 CPU 规模下,学习型方法十种子方差较大,
+故只读取稳健趋势而非单一胜者。两条趋势稳定:其一,置信状态方法(置信 DQN 与 LA-JSSA)在相当吞吐下的
+\emph{均值}碰撞低于随机与策略梯度基线,符合命题~\ref{prop:suff} 的信息精化观点;其二,贪心规则证实
+置信驱动决策\emph{可以}把碰撞压到近零(以低吞吐为代价),oracle 给出吞吐上界。学习型方法之间的均值吞吐差异
+落在一个标准差以内,\emph{不}作为本文论据;风险约束带来的干净、稳健的区分不在均值而在碰撞\emph{尾部}(见 Q3)。
+
+\vspace{2pt}
+\noindent\begin{tabular}{@{}lcc@{}}
+\toprule
+方法 & 吞吐 & PU 碰撞\\
+\midrule
+随机接入 & $0.092\pm0.004$ & $0.231\pm0.032$\\
+贪心(min-belief) & $0.083\pm0.001$ & $0.004\pm0.003$\\
+固定信道 DQN & $0.119\pm0.041$ & $0.139\pm0.108$\\
+置信 DQN(均值约束) & $0.111\pm0.014$ & $0.110\pm0.085$\\
+PPO(Lagrangian) & $0.082\pm0.046$ & $0.182\pm0.236$\\
+LA-JSSA(CVaR,本文) & $0.099\pm0.039$ & $0.156\pm0.171$\\
+完美感知 oracle & $0.188\pm0.000$ & $0.000\pm0.000$\\
+\bottomrule
+\end{tabular}
+\vspace{2pt}
+
+\textbf{\hei{Q3（CVaR 尾部保护）。}}为避免在退化(尾部本就近零)的环境中验证削尾,我们注入相关性 PU 活动突发,
+使碰撞回报具有\emph{真实}重尾。均值受限 agent 满足均值预算但有重尾(每窗口碰撞 95 分位为 9、最大 16);
+CVaR 受限 agent 在\emph{相当或更高}吞吐下把碰撞质量集中到零(95 分位与最大均为 0),消除突发。
+这是定理~\ref{thm:cvar} 的接入端实现,且尾部是真实的(非退化伯努利),故削减是对论断的真实(而非循环)检验。
+
+\textbf{\hei{Q4（M1/M2/M3 消融）。}}去掉置信表示（$-$M2）或不确定性惩罚（$-$M3）显著恶化两项指标；
+$-$M1 在\emph{均值}上与完整方法接近，但其价值在碰撞\emph{尾部}，与 Q3 互补而非矛盾。
+
+\textbf{\hei{Q5（频率 vs 时间敏感性）。}}分别注入频率定位误差与帧内时间范围误差。结果呈鲜明的不对称：
+吞吐随频率误差陡降、碰撞随之陡升，而在时间误差下两者近乎平坦（吞吐 $\approx0.066$、碰撞恒为 $0$）。
+这证实同一帧内接入取决于频率而非时间，支撑频率中心的误差模型~\eqref{eq:loc2cell}。
+
+\textbf{\hei{Q6（从定位精度到接入）。}}扫定位质量，测平均频率 IoU、$\eloc$、诱导的 cell 级
+$(\Pmd,\Pfa)$ 与固定贪心策略的接入吞吐。结果：cell 级误差随 $\eloc$ 近似线性增长（验证
+~\eqref{eq:loc2cell}）；接入吞吐差距随 $\eloc$ 线性增长（验证推论~\ref{cor:loc}）。这从因果上闭合了
+"频率定位 $\to$ 接入"的链条，并表明收益源于定位器而非接入策略本身。
+
+\begin{table}[t]
+\centering
+\caption{理论预测与仿真测量对照}
+\begin{tabular}{@{}p{4.2cm} p{3.2cm} p{2.6cm} l@{}}
+\toprule
+结论 & 预测 & 实测 & 判定\\
+\midrule
+定理 1：工作点 $\thr^\star$ & $\thr^\star_{\text{sim}}=\thr^\star_{\text{解析}}$ & $0.85=0.85$ & 吻合\\
+推论：$\eloc\!\to\!\Pmd$ 线性 & 相关系数 $\approx 1$ & $r=0.993$ & 线性\\
+推论：$\eloc\!\to\!$ 吞吐差距 线性 & 相关系数 $\approx 1$ & $r=0.986$ & 线性\\
+频率 vs 时间：吞吐斜率 & 频率 $\ll$ 时间 & $-0.012$ / $0.001$ & 频率主导\\
+频率 vs 时间：最大碰撞 & 频率 $\gg$ 时间 & $0.092$ / $0.000$ & 频率主导\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{\hei{讨论与局限（诚实声明）。}}（i）智能体为紧凑 numpy 实现而非完整 conv-频率/LRU 编码器，
+仅用有限种子；camera-ready 应使用完整编码器、$\ge 10$ 个种子加置信区间、PPO/SAC/QR-DQN 等更强
+受约束 RL 基线，并在匹配状态/动作下比较。（ii）图中近零碰撞尾部部分源于合成环境；实测频谱上预期有小的
+残余尾部。（iii）合成 ROC 是参数模型，实验用于在受控实例上验证"假设与预测自洽"，而非证明假设在真实硬件上
+成立；环境用于\emph{隔离}假设，而非 tuned 来最大化 LA-JSSA 性能。（iv）regret 结论针对表格代理，与所用
+深度智能体仅在定性结构层面相连，不声称该界支配实测曲线。
+
+\section{结论}
+本文提出 LA-JSSA，让连续占用置信图驱动接入策略，取代既往 DRL-DSA 普遍假设的固定信道状态，从而闭合时频
+定位与频谱接入。我们推导了定位误差如何传播到碰撞与吞吐、刻画了三方权衡的工作点（定理~\ref{thm:trade}）、
+表明置信表示不弱于更粗的固定信道表示（命题~\ref{prop:suff}）、引入了工作点可证更保守的风险敏感（CVaR）
+接入形式（定理~\ref{thm:cvar}），并针对表格代理把 regret 分离为消失学习项与策略无关的感知项
+（定理~\ref{thm:regret}）。未来工作包括：使用完整 conv-频率/LRU 编码器的大规模评估、更多种子与更强受约束
+RL 基线的匹配比较、实测频谱验证、连续时频平面上的多 SU 多智能体扩展，以及更直接面向深度智能体的 regret 分析。
+
+\vfill
+\noindent\rule{\linewidth}{0.4pt}\\
+\small 本译稿与英文投稿稿在记号与编号上保持一致；如有出入，以英文 \texttt{la\_jssa.pdf} 为准。
+
+\end{document}

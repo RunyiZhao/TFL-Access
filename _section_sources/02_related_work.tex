@@ -1,0 +1,92 @@
+\section{Related Work}
+\label{sec:related_work}
+
+We organize prior work into three strands---TF localization, DRL-based
+access, and joint sensing-and-access---and state, for each, the precise
+distinction from LA-JSSA.
+
+\subsection{Time--Frequency Localization for Wideband Sensing}
+Classical spectrum sensing---energy, matched-filter, cyclostationary, and
+covariance-based detectors---is surveyed
+in~\cite{yucek2009survey,axell2012spectrum,arjoune2019comprehensive}.
+Scanning-based wideband sensing divides the spectrum into subbands according
+to a known channelization and applies narrowband detection in each
+subband~\cite{wang2018}. In shared bands such as CBRS and ISM, however, the
+center frequency and subchannel division of incumbents change adaptively with
+service demand and channel state, so methods that presuppose a fixed
+channelization fail~\cite{sohul2015cbrs}. Deep learning has since been applied
+to over-the-air signal classification~\cite{oshea2018over,oshea2021dataset}
+and wideband signal detection~\cite{vo2020wideband}. TFL was introduced
+precisely to remove the fixed-channelization assumption: by casting the
+magnitude spectrogram as an image and applying object detection, a detector
+can simultaneously estimate the time and frequency support of every
+emission~\cite{prasad2020,prasad2021spectrum}.
+
+A detector lineage has followed. Downscaled Faster-RCNN and YOLO-family
+detectors~\cite{redmon2018yolov3} were first adapted to signal TFL~\cite{prasad2020,li2022hf}. The
+diverse aspect ratios of RF emissions cause a prior-anchor mismatch in
+anchor-based detectors; anchor-free keypoint detectors with tailored matching
+were proposed to resolve it and to classify multiple co-existing
+emitters~\cite{zhao2024uav}. When emissions overlap in the TF plane---as they
+do under concurrent spectrum reuse---convolutional backbones lose
+discriminative features; transformer backbones that exploit TF correlation,
+optionally with masked-autoencoder pre-training~\cite{he2022mae} to overcome label scarcity,
+achieve state-of-the-art robustness~\cite{zhao2025trtfl_ssl,
+zhang2024spectrumtransformer,he2022mae}. Collectively, this line has made the
+occupancy description ever more precise and robust. \emph{Our distinction:}
+every one of these works terminates at sensing, emitting boxes (or, after
+non-maximum suppression, hard decisions) that are never coupled to an access
+policy. We instead retain the detector's \emph{soft} output as a belief state
+and close the loop to access.
+
+\subsection{DRL for Dynamic Spectrum Access}
+DRL-based DSA learns channel-selection policies under partial observability,
+building on the deep $Q$-network~\cite{mnih2015human} and modern
+policy-gradient methods such as PPO~\cite{schulman2017ppo} and soft
+actor--critic~\cite{haarnoja2018sac}. Deep $Q$-networks were applied to
+multichannel access with correlated channel occupancy~\cite{wang2018};
+actor--critic frameworks improved performance in large action
+spaces~\cite{zhong2019}; recurrent $Q$-networks addressed partial observation
+by summarizing observation histories~\cite{xu2020partial,hausknecht2015drqn,
+xu2021deep}; reservoir-computing and multi-user variants targeted distributed
+access~\cite{chang2019distributive,naparstek2018deep}; UCB-style exploration was used in cooperative sensing~\cite{zhang2019deep}; and
+spectrum-aggregation schemes let an SU combine several idle channels to meet a
+bandwidth demand~\cite{li2020aggregation}. Related efforts apply DRL to joint
+channel and power control~\cite{tan2020deep} and to cognitive radio sensor
+networks~\cite{lin2019deep}. These methods share a structural premise: the
+state is defined on a \emph{fixed channel grid} with binary occupancy, and the
+action selects one or more whole grid channels. \emph{Our distinction:} our
+state is a continuous TF belief map with no grid, our action is a continuous
+resource block, and---uniquely---we analyze how sensing error propagates into
+this continuous access problem.
+
+Safety and risk in RL are also relevant to our CVaR access constraint.
+Constrained MDPs~\cite{altman1999constrained} and their deep solvers
+(constrained policy optimization~\cite{achiam2017cpo}, reward-constrained
+policy optimization~\cite{tessler2019reward}) enforce expected-cost limits,
+while percentile- and CVaR-based criteria~\cite{chow2017risk,rockafellar2000cvar}
+and distributional RL~\cite{bellemare2017distributional,dabney2018qrdqn,
+ma2020dsac} target the tail. We adopt a distributional critic with a CVaR
+collision constraint and connect its operating point to the sensing error.
+
+\subsection{Joint Sensing-and-Access}
+Closest to us are works that jointly design sensing and access. The classical
+sensing--throughput trade-off optimizes the sensing \emph{duration} and an
+energy threshold for a \emph{single} channel, trading detection against
+false alarm along the time axis~\cite{liang2008sensing}; it does not address
+a two-dimensional continuous TF plane or a learned localizer. Among learning
+approaches, double deep $Q$-learning has been used to learn sensing and
+access policies jointly, but in a \emph{narrowband, single-channel} setting
+without TF localization or continuous boxes~\cite{bokobza2023ddqsa}.
+Hierarchical multi-agent DRL jointly selects a sensing window and power
+allocation, yet its state remains discrete band occupancy on a fixed
+grid~\cite{li2024hmadrl}. Cooperative sensing-and-access for industrial IoT
+integrates the two via optimization rather than learning~\cite{liu2023ciiot}.
+Interference-temperature-constrained DSA formalizes PU protection but again
+on predefined channels~\cite{xing2007dsa}. \emph{Our distinction:} LA-JSSA
+operates on a two-dimensional continuous TF plane, drives access directly
+from a learned occupancy belief map, analyzes the resulting
+sensing-accuracy/throughput/PU-protection trade-off as a function of
+localization error, and protects the PU through a tail-risk (CVaR) constraint
+rather than a mean constraint---a regime, to our knowledge, not previously
+treated.

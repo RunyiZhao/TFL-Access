@@ -1,0 +1,106 @@
+% ============================================================
+%  notation_macros.tex
+%  SINGLE SOURCE OF TRUTH for all mathematical notation.
+%  Every symbol used in the paper is defined here as a macro
+%  so that a global change propagates everywhere.
+% ============================================================
+
+% ---- generic operators / sets ----
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\Nat}{\mathbb{N}}
+\newcommand{\Prob}{\mathbb{P}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\Ind}{\mathbf{1}}             % indicator function
+\newcommand{\defeq}{\triangleq}
+\DeclareMathOperator*{\argmax}{arg\,max}
+\DeclareMathOperator*{\argmin}{arg\,min}
+\DeclareMathOperator{\sgn}{sgn}
+
+% ---- signal / STFT model ----
+\newcommand{\rx}{r}                       % received continuous signal r(t)
+\newcommand{\sutx}{x}                      % SU transmitted signal
+\newcommand{\noise}{w}                     % AWGN
+\newcommand{\Npu}{N_{\mathrm{p}}}          % number of PU emissions
+\newcommand{\fs}{f_{\mathrm{s}}}           % sampling rate
+\newcommand{\Wband}{W}                     % total monitored bandwidth
+\newcommand{\fc}{f_{\mathrm{c}}}           % center frequency (sensor)
+\newcommand{\STFT}{\mathcal{S}}            % STFT operator
+\newcommand{\spec}{\bm{X}}                 % spectrogram (magnitude) matrix
+\newcommand{\Nf}{N_f}                      % number of frequency bins
+\newcommand{\Nt}{N_t}                      % number of time bins (per frame)
+\newcommand{\cell}{(m,n)}                  % a TF cell index (freq m, time n)
+
+% ---- PU emission descriptor (continuous TF box) ----
+\newcommand{\boxk}{\bm{b}}                 % a TF box b = (fc, BW, ts, dur)
+\newcommand{\bfc}{f}                       % box center frequency
+\newcommand{\bBW}{\beta}                   % box bandwidth
+\newcommand{\bts}{\tau}                    % box start time
+\newcommand{\bdur}{\delta}                 % box duration
+
+% ---- occupancy / belief map ----
+\newcommand{\occ}{O}                       % true occupancy O_{m,n} in {0,1}
+\newcommand{\bel}{B}                       % belief map B_{m,n} in [0,1]
+\newcommand{\belmap}{\bm{B}}               % full belief map matrix
+\newcommand{\occmap}{\bm{O}}               % full true occupancy matrix
+\newcommand{\Pmd}{P_{\mathrm{md}}}         % cell-level miss-detection prob
+\newcommand{\Pfa}{P_{\mathrm{fa}}}         % cell-level false-alarm prob
+\newcommand{\thr}{\eta}                    % decision threshold on belief
+
+% ---- access action ----
+\newcommand{\act}{\bm{a}}                  % access action (resource block)
+\newcommand{\afc}{f^{\mathrm{a}}}          % action center freq
+\newcommand{\aBW}{\beta^{\mathrm{a}}}      % action bandwidth
+\newcommand{\ats}{\tau^{\mathrm{a}}}       % action start time
+\newcommand{\adur}{\delta^{\mathrm{a}}}    % action duration
+\newcommand{\pwr}{p}                       % transmit power
+\newcommand{\pmax}{p_{\max}}               % power budget
+\newcommand{\dmin}{\beta_{\min}}           % minimum bandwidth demand
+
+% ---- POMDP / RL ----
+\newcommand{\state}{\bm{s}}                % state
+\newcommand{\obs}{\bm{o}}                  % observation
+\newcommand{\histlen}{H}                   % history length (ConvLSTM window)
+\newcommand{\rew}{r}                       % reward (overloaded w/ rx? use R)
+\renewcommand{\rew}{\mathcal{R}}           % reward function
+\newcommand{\pol}{\pi}                     % policy
+\newcommand{\polopt}{\pi^{\star}}          % optimal policy
+\newcommand{\disc}{\gamma}                 % discount factor
+\newcommand{\Qfun}{Q}                      % action-value
+\newcommand{\Vfun}{V}                      % state-value
+\newcommand{\bigT}{T}                      % horizon
+
+% ---- performance metrics ----
+\newcommand{\Pcol}{P_{\mathrm{col}}}       % PU collision probability
+\newcommand{\Pcolmax}{P_{\mathrm{col}}^{\max}} % collision constraint
+\newcommand{\thru}{\mathsf{R}}             % achievable throughput
+\newcommand{\thrumax}{\mathsf{R}_{\max}}   % max (oracle) throughput
+\newcommand{\util}{U}                      % spectrum utilization
+\newcommand{\regret}{\mathrm{Reg}}         % regret
+
+% ---- policy classes (Theorem B) ----
+\newcommand{\PIbel}{\Pi_{\mathrm{bel}}}    % belief-state policy class
+\newcommand{\PIdis}{\Pi_{\mathrm{disc}}}   % fixed-channel discretized class
+\newcommand{\quanterr}{\epsilon_{\mathrm{q}}} % quantization distortion bound
+
+% ---- M1: distributional / CVaR risk-sensitive macros ----
+\newcommand{\Zret}{Z}                       % return distribution (random)
+\newcommand{\Zcol}{Z_{\mathrm{col}}}        % collision return (random)
+\newcommand{\Zthru}{Z_{\mathsf{R}}}         % throughput return (random)
+\DeclareMathOperator{\CVaR}{CVaR}
+\DeclareMathOperator{\VaR}{VaR}
+\newcommand{\cvarlvl}{\alpha}               % CVaR tail level for throughput
+\newcommand{\cvarcol}{\beta}                % CVaR tail level for collision
+\newcommand{\thrcvar}{\thr^{\star}_{\mathrm{CVaR}}} % CVaR-optimal threshold
+\newcommand{\Qinv}{F^{-1}}                   % quantile function
+
+\newcommand{\hidden}{\bm{s}^{\mathrm{h}}}   % hidden state (true occupancy + box params)
+\newcommand{\PcolmaxW}{P_{\mathrm{col},W}^{\max}}  % per-window collision budget
+\newcommand{\iou}{\mathrm{IoU}}
+\newcommand{\eloc}{\varepsilon_{\mathrm{loc}}}
+\newcommand{\cmd}{c_{\mathrm{md}}}
+\newcommand{\cfa}{c_{\mathrm{fa}}}
+\newcommand{\rmd}{r_{\mathrm{md}}}
+\newcommand{\rfa}{r_{\mathrm{fa}}}
+\newcommand{\fint}{I}
+\newcommand{\flo}{f_{\mathrm{lo}}}
+\newcommand{\fhi}{f_{\mathrm{hi}}}

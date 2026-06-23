@@ -1,0 +1,526 @@
+% 05_theory.tex  --  Theorem A WRITTEN; B, C structured stubs
+\section{Theoretical Analysis}
+\label{sec:theory}
+
+This section analyzes LA-JSSA. Because a single tractable theorem cannot
+simultaneously capture the learned detector, the continuous control, and the
+finite-time learning dynamics, we analyze the system through a deliberate
+\emph{hierarchy of abstractions}---true system (Sec.~\ref{sec:system_model})
+$\to$ belief map (Sec.~\ref{sec:framework}) $\to$ fixed-policy evaluation
+(Thms.~\ref{thm:tradeoff},~\ref{thm:cvar}) $\to$ tabular surrogate
+(Prop.~\ref{thm:regret})---each tier exposing one structural property while
+holding the others fixed. The results answer three \emph{distinct} questions
+about the same system, and we state up front what each does and does
+\emph{not} claim:
+\begin{itemize}
+\item \textbf{Operating-point analysis} (Theorems~\ref{thm:tradeoff},
+\ref{thm:cvar}): a \emph{fixed-policy evaluation} of how the belief threshold
+$\thr$---for a fixed action geometry---trades sensing error against
+throughput and PU protection, under the mean and the CVaR constraint. These
+characterize a static operating point; they are not statements about the
+learning process.
+\item \textbf{Representation analysis} (Proposition~\ref{thm:sufficiency}):
+an information-theoretic comparison of the belief-map state against a coarser
+fixed-channel state \emph{under a common action space}. It concerns what is
+\emph{representable}, not how it is learned.
+\item \textbf{Learning analysis} (Proposition~\ref{thm:regret}): a finite-time
+regret bound for a \emph{tabular surrogate} of the access problem. It gives
+qualitative insight into the structure of the learning cost; it is
+\emph{not} a guarantee for the deep agent of Section~\ref{sec:framework},
+which serves as a heuristic solver of the surrogate.
+\end{itemize}
+We make no claim that the deep RL algorithm inherits these guarantees; the
+theory characterizes the surrogate hierarchy, and the experiments
+(Section~\ref{sec:simulation}) test whether the predicted \emph{qualitative}
+structure carries over to the deep agent.
+
+\begin{remark}[Relation to classical sensing--throughput trade-off]
+The classical sensing--throughput trade-off \cite{liang2008sensing} optimizes
+the \emph{sensing duration} and an energy threshold for a \emph{single}
+channel along the time axis. Theorem~\ref{thm:tradeoff} differs in kind: the
+lever is the belief threshold $\thr$ on a \emph{two-dimensional} continuous
+TF occupancy estimate, coupling the localization error of a learned detector
+to the \emph{access} reward through the collision event
+\eqref{eq:collision}.
+\end{remark}
+
+\subsection{Assumptions}
+\label{subsec:assumptions}
+
+The access stage consumes the output of a \emph{time--frequency localizer},
+not a per-channel energy detector. A key structural feature of the
+sense-then-access frame simplifies what matters: within one frame, the
+sensing phase estimates which \emph{frequency} ranges are unoccupied, and the
+access phase of the \emph{same} frame reuses those ranges. The temporal
+support of an emission is thus fixed by the frame boundary and given to both
+phases; it is the \emph{frequency} extent of each emission that the localizer
+must pin down, since a frequency-localization error is what causes the access
+phase to either collide (under-estimated occupancy) or waste spectrum
+(over-estimated occupancy). We therefore measure localization accuracy by the
+\emph{frequency-interval} overlap and relate it to the cell-level error that
+drives the access analysis, so that $\Pmd,\Pfa$ are \emph{derived} from
+localization quality rather than postulated.
+
+\begin{assumption}[Frequency-localization error model]
+\label{as:localization}
+For each true PU emission, let its occupied frequency interval in a frame be
+$\fint_k=[\flo^{k},\fhi^{k}]$, and let the localizer emit the estimate
+$\hat\fint_k=[\hat\flo^{k},\hat\fhi^{k}]$. Measure the frequency-localization
+accuracy by the one-dimensional overlap
+\begin{equation}
+\iou_k\defeq\frac{|\fint_k\cap\hat\fint_k|}{|\fint_k\cup\hat\fint_k|}\in[0,1],
+\qquad
+\eloc\defeq 1-\E[\iou_k],
+\label{eq:freq_iou}
+\end{equation}
+the mean frequency-localization error. After rasterizing $\hat\fint_k$ to the
+$\Nf$ frequency cells and thresholding the belief at $\thr$, the induced
+per-cell miss and false-alarm rates satisfy
+\begin{equation}
+\Pmd(\thr)\le \cmd\,\eloc + \rmd(\thr),
+\qquad
+\Pfa(\thr)\le \cfa\,\eloc + \rfa(\thr),
+\label{eq:loc_to_cell}
+\end{equation}
+where $\rmd,\rfa$ are the residual detection errors of a perfectly localized
+interval---the contribution of the \emph{confidence threshold} $\thr$ alone,
+i.e.\ where the soft score is cut---and $\cmd,\cfa>0$ are geometry
+constants scaling the \emph{localization} contribution. Thus tightening the
+frequency localization (higher IoU, smaller $\eloc$) lowers both cell-level
+error floors, and adjusting $\thr$ trades $\Pmd$ against $\Pfa$ along the
+residual ROC. Temporal-support error does not appear: it is absorbed by the
+frame alignment shared between the sensing and access phases.
+\end{assumption}
+
+\begin{assumption}[Cell-level error model]
+\label{as:cellerror}
+Conditioned on the true occupancy, the thresholded belief decisions
+$\hat{\occ}_{m,n}\defeq\Ind\{\bel_{m,n}\ge\thr\}$ across cells are
+characterized by a common miss-detection probability $\Pmd(\thr)$ and
+false-alarm probability $\Pfa(\thr)$ as in \eqref{eq:pmd}--\eqref{eq:pfa},
+each bounded via \eqref{eq:loc_to_cell} of
+Assumption~\ref{as:localization}. Both are continuous and monotonic in
+$\thr$: $\Pmd$ is non-decreasing and $\Pfa$ is non-increasing in $\thr$.
+\end{assumption}
+
+\begin{assumption}[Receiver operating characteristic]
+\label{as:roc}
+The detector admits a continuously differentiable ROC, i.e. there is a
+differentiable, strictly decreasing function $\rho$ with
+$\Pmd = \rho(\Pfa)$ (equivalently the detection probability
+$P_{\mathrm{d}}=1-\Pmd$ is a concave, increasing function of $\Pfa$). This
+holds for energy- and learning-based detectors operating above the
+noise floor.
+\end{assumption}
+
+\begin{assumption}[Fixed action geometry; bounded rate and penalty]
+\label{as:rate}
+The analysis is conducted for a \emph{fixed} SU action geometry: the chosen
+block covers $A\defeq|\mathcal{A}(\act)|$ cells, of which $A_{\mathrm{idle}}$
+are truly idle and $|\mathcal{O}(\act)|$ truly occupied, and these counts are
+treated as constants independent of $\thr$ (the threshold governs detection,
+not block placement). A truly idle accessed cell yields normalized rate
+$\bar r>0$; a transmission overlapping any occupied cell is lost and incurs a
+retransmission penalty captured by $\kappa>0$.
+\end{assumption}
+
+\begin{assumption}[Single-peaked throughput]
+\label{as:concave}
+The throughput objective $\thru(\thr)=\bar r A_{\mathrm{idle}}(1-\Pfa(\thr))
+-\kappa\Pcol(\thr)$ is continuous and \emph{quasiconcave} in $\thr$ on
+$[0,1]$, so that its stationary point is a global maximizer. We restrict
+attention to ROC families for which this holds---e.g.\ those whose
+$\Pfa(\thr)$ is convex and $\Pcol(\thr)$ concave (or both affine) over the
+operating range, giving a single-crossing first-order condition. This covers
+the central, near-linear regime of typical energy- and learning-based
+detector ROCs; outside it, the result of Theorem~\ref{thm:tradeoff} holds
+only as a first-order/boundary characterization (stated explicitly in the
+proof).
+\end{assumption}
+
+\subsection{Error Propagation and the Three-Way Trade-Off}
+\label{subsec:thmA}
+
+We begin with two lemmas that map the cell-level error to the two access
+performance measures.
+
+\begin{lemma}[Collision bound]
+\label{lem:collision}
+Fix an SU action $\act$ and let $\mathcal{O}(\act)$ be the set of truly
+occupied cells overlapping the chosen block. Under
+Assumption~\ref{as:cellerror}, the collision probability obeys the
+distribution-free union bound
+\begin{equation}
+\Pcol(\thr)\le\!\!\sum_{(m,n)\in\mathcal{O}(\act)}\!\!
+\Prob\big(\hat\occ_{m,n}{=}0\mid \occ_{m,n}{=}1\big)
+=|\mathcal{O}(\act)|\,\Pmd(\thr).
+\label{eq:lem_collision_union}
+\end{equation}
+If, in addition, the per-cell miss events are conditionally independent given
+the occupancy (or positively associated), the bound tightens to
+\begin{equation}
+\Pcol(\thr)\;\le\;1-\bigl(1-\Pmd(\thr)\bigr)^{|\mathcal{O}(\act)|},
+\label{eq:lem_collision}
+\end{equation}
+which agrees with \eqref{eq:lem_collision_union} to first order,
+$\Pcol(\thr)\le|\mathcal{O}(\act)|\,\Pmd(\thr)+o(\Pmd)$.
+\end{lemma}
+
+\begin{IEEEproof}
+A collision occurs iff at least one cell in $\mathcal{O}(\act)$ is declared
+idle. The union bound over these $|\mathcal{O}(\act)|$ events, each of
+marginal probability $\Pmd(\thr)$ by Assumption~\ref{as:cellerror}, gives
+\eqref{eq:lem_collision_union} with no dependence assumption. Under
+conditional independence the no-collision probability factorizes as
+$(1-\Pmd)^{|\mathcal{O}(\act)|}$ (and the FKG inequality gives the same
+direction under positive association), yielding \eqref{eq:lem_collision};
+the first-order expansion follows from $(1-x)^{k}=1-kx+o(x)$. We use the
+conservative form \eqref{eq:lem_collision_union} in the sequel, so no
+counterfactual quantity is required.
+\end{IEEEproof}
+
+\begin{lemma}[Throughput bound]
+\label{lem:throughput}
+Under the same assumptions, the expected normalized SU throughput obeys
+\begin{equation}
+\thru(\thr) \;\ge\; \bar{r}\,A_{\mathrm{idle}}\bigl(1-\Pfa(\thr)\bigr)
+\;-\; \kappa\,\Pcol(\thr),
+\label{eq:lem_throughput}
+\end{equation}
+where $A_{\mathrm{idle}}$ is the number of truly idle cells available to the
+block and $\kappa>0$ aggregates the retransmission penalty of
+Assumption~\ref{as:rate}.
+\end{lemma}
+
+\begin{IEEEproof}
+A truly idle cell contributes rate $\bar{r}$ only if it is not falsely
+flagged as occupied, which occurs with probability $1-\Pfa$; summing the
+$A_{\mathrm{idle}}$ idle cells gives the first term by linearity of
+expectation. Each collision event removes the affected rate and adds a
+retransmission cost, captured by $-\kappa\Pcol$. Lower-bounding the
+(non-negative) higher-order interaction terms by zero yields
+\eqref{eq:lem_throughput}.
+\end{IEEEproof}
+
+\begin{theorem}[Three-way trade-off and operating point under fixed action geometry]
+\label{thm:tradeoff}
+Consider maximizing the expected throughput \eqref{eq:lem_throughput} subject
+to the PU-protection constraint $\Pcol(\thr)\le\Pcolmax$ over the belief
+threshold $\thr\in[0,1]$. Under Assumptions~\ref{as:cellerror}--\ref{as:rate}:
+\begin{enumerate}
+\item[(i)] \emph{(Feasibility frontier.)} There exists a threshold
+$\thr_{\min}$, the smallest $\thr$ with
+$|\mathcal{O}(\act)|\,\Pmd(\thr)\le\Pcolmax$, such that the constraint is
+satisfied iff $\thr\ge\thr_{\min}$.
+\item[(ii)] \emph{(Trade-off surface.)} On the feasible set the achievable
+throughput is governed by the map
+$\thr\mapsto\bigl(\Pfa(\thr),\Pmd(\thr)\bigr)$ and, via
+Assumption~\ref{as:roc}, traces a one-dimensional curve on the
+sensing-accuracy/throughput/PU-protection surface.
+\item[(iii)] \emph{(Optimal operating point.)} The throughput-maximizing
+feasible threshold is
+\begin{equation}
+\thr^{\star}=
+\begin{cases}
+\thr_{\mathrm{u}}, & \text{if } \thr_{\mathrm{u}}\ge\thr_{\min},\\[2pt]
+\thr_{\min}, & \text{otherwise,}
+\end{cases}
+\label{eq:thmA_opt}
+\end{equation}
+where $\thr_{\mathrm{u}}$ is the unconstrained stationary point solving
+\begin{equation}
+\bar{r}\,A_{\mathrm{idle}}\,\Pfa'(\thr)
+\;=\;-\,\kappa\,\Pcol'(\thr).
+\label{eq:thmA_foc}
+\end{equation}
+That is, the optimum is interior when the marginal throughput gained by
+admitting more spectrum (lower $\Pfa$) balances the marginal collision cost;
+otherwise it sits on the PU-protection boundary.
+\end{enumerate}
+\end{theorem}
+
+\begin{IEEEproof}
+(i) By Assumption~\ref{as:cellerror}, $\Pmd(\thr)$ is non-decreasing, hence
+the right side of \eqref{eq:lem_collision} is non-decreasing in $\thr$;
+\emph{decreasing} $\thr$ lowers $\Pmd$ and thus $\Pcol$. Therefore the
+feasible set $\{\thr:\Pcol(\thr)\le\Pcolmax\}$ is an upper interval
+$[\thr_{\min},1]$ whose left endpoint is the stated $\thr_{\min}$ by
+continuity (Assumption~\ref{as:cellerror}).
+(ii) Eliminating $\thr$ through the ROC relation $\Pmd=\rho(\Pfa)$
+(Assumption~\ref{as:roc}) parameterizes throughput and collision jointly by
+$\Pfa$, giving the claimed curve.
+(iii) Substitute \eqref{eq:lem_collision} into \eqref{eq:lem_throughput} to
+write throughput as $\thru(\thr)=\bar r A_{\mathrm{idle}}(1-\Pfa(\thr))
+-\kappa\Pcol(\thr)$. Differentiating and setting to zero gives the
+first-order condition \eqref{eq:thmA_foc}. Under
+Assumption~\ref{as:concave} (single-peaked $\thru$), any interior stationary
+point $\thr_{\mathrm u}$ is the global maximizer on $[0,1]$; projecting onto
+the feasible interval $[\thr_{\min},1]$ yields \eqref{eq:thmA_opt}. Absent
+Assumption~\ref{as:concave}, \eqref{eq:thmA_foc} remains valid as a
+\emph{first-order optimality condition} and \eqref{eq:thmA_opt} as the
+characterization of the constrained optimum among stationary and boundary
+points, without the global-optimality claim.
+\end{IEEEproof}
+
+\begin{corollary}[Price of imperfect localization]
+\label{cor:price}
+Let $\thru^{\circ}=\bar r A_{\mathrm{idle}}$ be the oracle throughput under
+perfect sensing ($\Pmd=\Pfa=0$). Then the throughput gap satisfies
+$\thru^{\circ}-\thru(\thr^{\star})\le
+\bar r A_{\mathrm{idle}}\Pfa(\thr^{\star})+\kappa\Pcolmax$, i.e. the loss is
+controlled linearly by the false-alarm rate at the operating point and by
+the admitted collision budget.
+\end{corollary}
+
+\begin{corollary}[Access cost of localization error]
+\label{cor:loc}
+Combining Corollary~\ref{cor:price} with the localization-error model
+\eqref{eq:loc_to_cell}, the throughput gap is controlled by the mean
+localization error $\eloc=1-\E[\iou]$:
+\begin{equation}
+\thru^{\circ}-\thru(\thr^{\star})\le
+\bar r A_{\mathrm{idle}}\bigl(\cfa\,\eloc+\rfa(\thr^{\star})\bigr)
++\kappa\Pcolmax .
+\label{eq:loc_gap}
+\end{equation}
+Hence each unit of improvement in frequency-localization IoU translates
+linearly into recovered access throughput. This is the sense in which sharper
+frequency localization---the access-relevant component of time--frequency
+localization---directly improves downstream access, closing the loop the
+title names.
+\end{corollary}
+
+\begin{remark}[Design implication]
+Once $\Pcolmax$ is fixed, Corollaries~\ref{cor:price}--\ref{cor:loc} show the
+remaining throughput levers are the false-alarm rate at $\thr^{\star}$ and the
+frequency-localization error $\eloc$---exactly what a tighter-interval,
+higher-IoU localizer buys, quantifying the value of improved frequency
+localization.
+\end{remark}
+
+\subsection{A Risk-Sensitive (CVaR) Operating Point}
+\label{subsec:thmD}
+Theorem~\ref{thm:tradeoff} constrains the \emph{expected} collision. A
+per-frame collision is, however, a near-degenerate (Bernoulli) event on which
+a tail risk measure reduces to a scaled mean; the tail only becomes
+meaningful once collisions are aggregated over time. We therefore define the
+\emph{collision-window variable}
+\begin{equation}
+\Zcol^{W}(\thr)\;\defeq\;\sum_{t=1}^{W}\mathrm{Col}_t(\thr),
+\label{eq:collision_window}
+\end{equation}
+the number of PU collisions over a window of $W$ consecutive access
+opportunities. Bursty interference---rare windows with many collisions---is
+exactly what a regulator penalizes and what a mean constraint misses. The
+distributional formulation of Section~\ref{subsec:dist_rl} replaces the mean
+constraint with a Conditional-Value-at-Risk (CVaR) constraint on this window
+variable,
+\begin{equation}
+\begin{aligned}
+&\CVaR_{\cvarcol}\!\left[\Zcol^{W}(\thr)\right]\le\PcolmaxW,\\
+&\CVaR_{\cvarcol}[\Zcol^{W}]\defeq\frac{1}{\cvarcol}\!\int_{1-\cvarcol}^{1}\!\!
+\Qinv_{\Zcol^{W}}(u)\,du,
+\end{aligned}
+\label{eq:cvar_constraint}
+\end{equation}
+where $\cvarcol\in(0,1]$ is the tail level ($\cvarcol\to1$ recovers the mean
+constraint) and $\PcolmaxW$ the per-window budget. We compare the threshold
+$\thrcvar$ feasible under \eqref{eq:cvar_constraint} with the $\thr^{\star}$
+of Theorem~\ref{thm:tradeoff}. This window-level definition is the quantity
+measured in Section~\ref{sec:simulation} (Fig.~\ref{fig:cvartail}).
+
+\begin{assumption}[Tail-monotone collision window]
+\label{as:tailmono}
+The collision-window variable $\Zcol^{W}$ of \eqref{eq:collision_window} is
+defined over \emph{fixed-length, non-overlapping} windows of $W$ consecutive
+access opportunities, with $W$ a constant independent of the horizon. For
+every fixed $\thr$, $\Zcol^{W}(\thr)$ has a continuous CDF, and lowering
+$\thr$ increases $\Zcol^{W}$ in the usual stochastic order (more missed
+detections produce stochastically more collisions per window).
+\end{assumption}
+
+\begin{theorem}[Conservativeness of the CVaR operating point]
+\label{thm:cvar}
+Under Assumptions~\ref{as:cellerror}--\ref{as:rate} and
+\ref{as:tailmono}, for any tail level $\cvarcol\in(0,1)$ the CVaR-feasible
+threshold is at least as conservative as the mean-feasible one,
+\begin{equation}
+\thrcvar \;\ge\; \thr^{\star}.
+\label{eq:cvar_conservative}
+\end{equation}
+Moreover $\thrcvar\to\thr^{\star}$ as the collision return becomes
+deterministic (e.g.\ as the localizer sharpens or $\cvarcol\to1$).
+\end{theorem}
+
+\begin{IEEEproof}
+Since $\CVaR_{\cvarcol}[\Zcol^{W}]\ge\E[\Zcol^{W}]$ for all
+$\cvarcol\in(0,1]$ with equality iff $\Zcol^{W}$ is deterministic (a standard
+coherent-risk property), the CVaR constraint \eqref{eq:cvar_constraint} is
+tighter than the corresponding mean constraint. By
+Assumption~\ref{as:tailmono} both $\E[\Zcol^{W}(\thr)]$ and
+$\CVaR_{\cvarcol}[\Zcol^{W}(\thr)]$ are non-increasing in $\thr$, so each
+constraint defines an upper feasible interval; the tighter constraint has the
+larger left endpoint, giving $\thrcvar\ge\thr^{\star}$, i.e.\
+\eqref{eq:cvar_conservative}. As the window variable concentrates, the
+CVaR--mean gap $\to 0$ and the two intervals coincide, giving the limit.
+\end{IEEEproof}
+
+\begin{corollary}[First-order conservativeness margin]
+\label{cor:cvargap}
+If, in addition, $\Pcol(\cdot)$ is differentiable at $\thr^\star$ with
+$\Pcol'(\thr^\star)\neq 0$ and the mean constraint is active there, then to
+first order
+\begin{equation}
+\thrcvar-\thr^{\star}\;\approx\;
+\frac{\CVaR_{\cvarcol}[\Zcol^{W}(\thr^{\star})]-\E[\Zcol^{W}(\thr^{\star})]}
+{\bigl|\Pcol'(\thr^{\star})\bigr|},
+\label{eq:cvar_gap}
+\end{equation}
+i.e.\ the conservativeness margin scales with the collision tail spread
+divided by the collision sensitivity. The associated throughput price is at
+most $\bar r A_{\mathrm{idle}}\,[\Pfa(\thrcvar)-\Pfa(\thr^{\star})]$. This is
+a local (first-order) estimate and is not claimed to hold globally.
+\end{corollary}
+
+\begin{IEEEproof}
+A first-order expansion of the binding CVaR constraint about $\thr^{\star}$
+gives $\CVaR_{\cvarcol}[\Zcol^{W}(\thr^{\star})]
++\Pcol'(\thr^{\star})(\thrcvar-\thr^{\star})\approx\Pcolmax
+=\E[\Zcol^{W}(\thr^{\star})]$, where the last equality uses that the mean
+constraint binds at $\thr^{\star}$. Solving for the threshold increment and
+using $\Pcol'<0$ yields \eqref{eq:cvar_gap}; the throughput price follows
+from Lemma~\ref{lem:throughput} evaluated at the two thresholds.
+\end{IEEEproof}
+
+\begin{remark}[Why distributional RL]
+Theorem~\ref{thm:cvar} and Corollary~\ref{cor:cvargap} show the value of
+learning the full return distribution: only then is the tail quantity
+$\CVaR_{\cvarcol}[\Zcol^{W}]$ estimable online, enabling the conservative
+operating point that a mean estimate cannot target.
+\end{remark}
+
+\subsection{Information Refinement: Sufficiency of the Belief State}
+\label{subsec:thmB}
+We compare two \emph{state representations} for the \emph{same} continuous
+action space of Section~\ref{subsec:access_tier}: the continuous belief map
+$\state$ of \eqref{eq:state}, and any fixed channelization that summarizes
+the TF plane into $K$ blocks. The comparison is purely one of information,
+with the action set held fixed.
+
+\begin{proposition}[Information refinement]
+\label{thm:sufficiency}
+Suppose the fixed-channel state is a deterministic (measurable) function of
+the belief map, $\state_{\mathrm{dis}}=g(\state)$. Let $\PIbel$ and $\PIdis$
+be the policy classes measurable w.r.t.\ $\state$ and $\state_{\mathrm{dis}}$
+respectively, over the common action space. Then
+$\PIdis\subseteq\PIbel$ and
+\begin{equation}
+\sup_{\pol\in\PIbel}\Vfun^{\pol}\;\ge\;\sup_{\pol\in\PIdis}\Vfun^{\pol}.
+\end{equation}
+\end{proposition}
+
+\begin{IEEEproof}
+Since $\state_{\mathrm{dis}}=g(\state)$, the $\sigma$-algebra generated by
+$\state_{\mathrm{dis}}$ is contained in that generated by $\state$; any
+$\state_{\mathrm{dis}}$-measurable policy is therefore $\state$-measurable,
+giving $\PIdis\subseteq\PIbel$. The supremum of the value over a larger
+policy class is no smaller, which is the data-processing (information
+monotonicity) inequality for the control value.
+\end{IEEEproof}
+
+The premise $\state_{\mathrm{dis}}=g(\state)$ holds for the standard
+constructions in which the fixed-channel occupancy is obtained by averaging
+or thresholding the belief map within each grid block. We emphasize that
+Proposition~\ref{thm:sufficiency} is an information-refinement statement,
+not a claim that \emph{every} conceivable fixed-channel scheme is dominated;
+it applies precisely to those that coarsen the belief. The next example shows
+the inequality can be strict.
+
+\begin{example}[Strict gap under grid misalignment]
+\label{ex:strictgap}
+Consider a single PU emission whose support straddles the interior of a grid
+block under a fixed channelization, occupying a fraction $\delta\in(0,1)$ of
+that block. Any policy measurable w.r.t.\ the block-level state must treat
+the block as a unit: accessing it collides with probability tied to
+$\delta$, while declining it forgoes the idle fraction $1-\delta$. A
+belief-map policy resolves the sub-block boundary and accesses only the idle
+portion. The resulting value gap is at least
+$\bar r\,(1-\delta)\,A_{\mathrm{cell}}-\kappa\,\delta$, which is strictly
+positive for an interval of $\delta$, establishing
+$\sup_{\PIbel}\Vfun>\sup_{\PIdis}\Vfun$ on this instance.
+\end{example}
+\noindent\emph{Derivation in Appendix~\ref{sec:appendix_suff}.}
+
+\subsection{A Stylized Regret Analysis Under Piecewise-Stationary Dynamics}
+\label{subsec:thmC}
+
+As stated in the scope bullets above, the following result is for a
+\emph{stylized tabular surrogate}---a tile-coded, finite state--action space
+under a sliding-window upper-confidence index---and exposes the qualitative
+structure we expect to carry over: a learning cost vanishing in rate plus a
+non-vanishing floor set by sensing error. Two regularity conditions are needed.
+
+\begin{assumption}[Bounded rewards and finite effective decision space]
+\label{as:bounded}
+The per-step reward \eqref{eq:reward} is bounded in $[0,1]$ after
+normalization, and the access policy acts on a finite effective
+state--action space of size $\mathsf{SA}$ obtained by tile-coding the belief
+state and using the discrete resource-block action set of
+Section~\ref{subsec:access_tier}. Reward observations are conditionally
+$\sigma$-sub-Gaussian given the state and action.
+\end{assumption}
+
+\begin{assumption}[Piecewise-stationary PU with bounded switches]
+\label{as:switch}
+PU occupancy follows a Markov process that is stationary on each of
+$\Upsilon_{\bigT}+1$ segments separated by $\Upsilon_{\bigT}$ change points,
+with every segment of length at least $L_{\min}$. Within a segment the
+induced belief-state MDP is fixed.
+\end{assumption}
+
+\begin{assumption}[Stationary, policy-independent sensing error]
+\label{as:stationary_sensing}
+Within a segment, the detector operates at a fixed threshold $\thr^\star$ and
+its per-cell error rates $(\Pmd(\thr^\star),\Pfa(\thr^\star))$ are constant
+and \emph{independent of the access policy}: the localizer is a fixed sensing
+channel that the agent does not adapt. Consequently the per-step value gap
+between the segment-optimal belief-state policy and the perfect-sensing
+oracle is stationary within the segment.
+\end{assumption}
+
+\begin{proposition}[Stylized regret: a learning term plus a policy-independent sensing gap]
+\label{thm:regret}
+Under Assumptions~\ref{as:cellerror}--\ref{as:rate} and
+\ref{as:bounded}--\ref{as:stationary_sensing}, an access policy that runs a
+sliding-window upper-confidence index over the belief state, with window
+tuned to $\Upsilon_{\bigT}$, incurs regret relative to the per-segment
+optimal belief-state policy bounded by
+\begin{equation}
+\regret(\bigT)\le
+\underbrace{C_1\sqrt{\mathsf{SA}\,\bigT\,\Upsilon_{\bigT}\log\bigT}}
+_{\text{learning (sublinear)}}
++
+\underbrace{C_2\,\bigT\big(\Pmd(\thr^{\star}){+}\Pfa(\thr^{\star})\big)}
+_{\text{sensing gap (linear)}},
+\label{eq:thmC}
+\end{equation}
+for constants $C_1,C_2>0$ depending only on $\sigma$, $\bar r$, and $\kappa$.
+The first term is $o(\bigT)$ whenever $\Upsilon_{\bigT}=o(\bigT/\log\bigT)$.
+The second is a \emph{policy-independent} gap set by the fixed sensing channel
+at $\thr^\star$ (Assumption~\ref{as:stationary_sensing}): no policy in the
+class can reduce it, since under this model the sensing error enters the
+reward as a stationary additive term rather than through the transition
+kernel. We do not claim the gap is irreducible if the agent were allowed to
+co-adapt the localizer, which is outside the present model.
+\end{proposition}
+\noindent\emph{Proof in Appendix~\ref{sec:appendix_regret}.}
+
+\subsection{Discussion}
+\label{subsec:theory_discussion}
+Theorem~\ref{thm:tradeoff} converts the qualitative ``better sensing helps
+access'' intuition into an operating point \eqref{eq:thmA_opt} that the
+simulation of Section~\ref{sec:simulation} will reproduce, validating the
+theory. Proposition~\ref{thm:sufficiency} explains \emph{why} the continuous
+belief state is the right representation, and Proposition~\ref{thm:regret}
+separates the learning cost from the policy-independent sensing-induced gap,
+clarifying which term improved localization can shrink.

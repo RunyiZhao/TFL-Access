@@ -1,0 +1,242 @@
+% 03_system_model.tex  --  WRITTEN
+\section{System Model and Problem Formulation}
+\label{sec:system_model}
+
+We consider a single secondary user (SU) opportunistically accessing a
+wideband spectrum of bandwidth $\Wband$ centered at $\fc$, which is
+shared by an \emph{unknown and time-varying} number of primary-user (PU)
+emissions. Such a setting arises in shared bands such as CBRS, where
+incumbents select center frequencies and bandwidths adaptively rather than on
+a fixed channel grid~\cite{sohul2015cbrs,xing2007dsa}. Unlike the
+fixed-channel models prevalent in the DRL-based DSA literature, we make
+\emph{no} assumption that PU activity is aligned to a predefined channel
+grid: each PU emission occupies an arbitrary center frequency, bandwidth,
+start time, and duration, exactly the regime targeted by TF
+localization~\cite{prasad2020,zhao2025trtfl_ssl}. The notation introduced
+below is summarized in Table~\ref{tab:notation}.
+
+\begin{table}[t]
+\centering
+\caption{Summary of Notation}
+\label{tab:notation}
+\begin{tabular}{ll}
+\toprule
+Symbol & Meaning \\
+\midrule
+$\spec\in\R_{\ge0}^{\Nf\times\Nt}$ & Magnitude spectrogram (frame) \\
+$\cell$ & TF cell (freq.\ bin $m$, time bin $n$) \\
+$\boxk_k=(\bfc_k,\bBW_k,\bts_k,\bdur_k)$ & $k$-th PU emission box \\
+$\occmap\in\{0,1\}^{\Nf\times\Nt}$ & True occupancy map \\
+$\belmap\in[0,1]^{\Nf\times\Nt}$ & Estimated occupancy belief map \\
+$\Pmd,\Pfa$ & Cell-level miss/false-alarm prob.\ \\
+$\thr$ & Belief decision threshold \\
+$\act=(\afc,\aBW,\ats,\adur,\pwr)$ & SU access action (resource block) \\
+$\dmin,\pmax$ & Min.\ bandwidth demand, power budget \\
+$\state_t,\obs_t$ & Access state, observation \\
+$\rew,\disc,\pol$ & Reward, discount, policy \\
+$\Pcol,\Pcolmax$ & PU collision prob.\ and its cap \\
+$\thru,\thrumax$ & Achievable / oracle throughput \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Wideband Signal and Spectrogram Model}
+\label{subsec:signal}
+The complex baseband signal observed by the wideband sensor over one frame
+is
+\begin{equation}
+\rx(t) \;=\; \sum_{k=1}^{\Npu} c_k\!\left(\sutx_k(t)\right) \;+\; \noise(t),
+\qquad 0 \le t < \bigT_{\mathrm{f}},
+\label{eq:rx}
+\end{equation}
+where $\sutx_k(t)$ is the $k$-th PU emission, $c_k(\cdot)$ denotes the
+corresponding channel (carrying carrier offset, bandwidth-limiting, and
+fading), $\noise(t)$ is additive white Gaussian noise, $\Npu$ is the
+(random, unknown) number of active emissions in the frame, and
+$\bigT_{\mathrm{f}}$ is the frame length. The signal is sampled at rate
+$\fs \ge \Wband$.
+
+Applying the short-time Fourier transform (STFT) operator $\STFT$ yields a
+single-resolution time--frequency (TF) representation; we work with the
+magnitude spectrogram
+\begin{equation}
+\spec \;=\; \bigl|\STFT\{\rx\}\bigr| \;\in\; \R_{\ge 0}^{\,\Nf \times \Nt},
+\label{eq:stft}
+\end{equation}
+discretized into $\Nf$ frequency bins and $\Nt$ time bins. We index an
+individual TF \emph{cell} by $\cell$, $m\in\{1,\dots,\Nf\}$,
+$n\in\{1,\dots,\Nt\}$. The STFT is preferred over variable-resolution
+transforms (CWT/CQT) because spectrum monitoring weights all frequencies
+equally~\cite{prasad2020}.
+
+\subsection{Continuous Occupancy Representation}
+\label{subsec:occupancy}
+Each PU emission $k$ is described by a continuous TF \emph{box}
+\begin{equation}
+\boxk_k \;=\; \bigl(\bfc_k,\, \bBW_k,\, \bts_k,\, \bdur_k\bigr),
+\label{eq:box}
+\end{equation}
+i.e. center frequency, bandwidth, start time, and duration. The box maps to
+a region $\mathcal{B}_k \subset \{1,\dots,\Nf\}\times\{1,\dots,\Nt\}$ of the
+discretized TF plane. The \emph{true occupancy map} is the binary matrix
+$\occmap\in\{0,1\}^{\Nf\times\Nt}$ with
+\begin{equation}
+\occ_{m,n} \;=\;
+\Ind\!\Bigl\{\, \cell \in \textstyle\bigcup_{k=1}^{\Npu}\mathcal{B}_k \,\Bigr\},
+\label{eq:occupancy}
+\end{equation}
+where $\occ_{m,n}=1$ marks a cell occupied by at least one PU. Crucially,
+$\occmap$ is \emph{not} block-structured along a fixed channelization;
+recovering it is exactly the TF-localization problem.
+
+We clarify the sense in which the model is ``grid-free.'' The PU
+\emph{emission parameters} \eqref{eq:box} are continuous; they are mapped to
+an occupancy map discretized at the \emph{sensing resolution} $\Nf\times\Nt$
+of the STFT. The point is not the absence of any discretization---a finite
+spectrogram is necessarily discretized---but the absence of a fixed
+\emph{communication channel grid} to which PU activity is assumed aligned.
+Emissions may occupy arbitrary cells at sensing resolution, straddling any
+notional channel boundary, which is precisely what defeats fixed-channel DSA
+models and motivates the localization-driven treatment.
+
+\subsection{Sensing Model: From Spectrogram to Belief Map}
+\label{subsec:sensing}
+The sensing module is a learned mapping $\phi_{\mathrm{sen}}$ that estimates,
+for each cell, the posterior probability of PU occupancy:
+\begin{equation}
+\belmap = \phi_{\mathrm{sen}}(\spec) \in [0,1]^{\Nf\times\Nt},
+\quad
+\bel_{m,n} \approx \Prob(\occ_{m,n}{=}1 \mid \spec).
+\label{eq:belief}
+\end{equation}
+Concretely, $\bel_{m,n}$ is the \emph{detection confidence} of the
+time--frequency localizer rasterized onto the cell grid: each estimated
+emission box carries a confidence score, and $\bel_{m,n}$ is the (edge-feathered)
+score of the box covering cell $(m,n)$, or a low background value where no box
+is predicted. We deliberately retain this \emph{soft} confidence $\belmap$
+rather than applying non-maximum suppression to obtain hard boxes; this
+preserves the sensing uncertainty that the access stage will exploit
+(cf. Section~\ref{sec:framework}). The reliability of $\phi_{\mathrm{sen}}$
+is characterized at the cell level by the miss-detection and false-alarm
+probabilities
+\begin{align}
+\Pmd &\defeq \Prob\!\left(\bel_{m,n} < \thr \;\middle|\; \occ_{m,n}=1\right),
+\label{eq:pmd}\\
+\Pfa &\defeq \Prob\!\left(\bel_{m,n} \ge \thr \;\middle|\; \occ_{m,n}=0\right),
+\label{eq:pfa}
+\end{align}
+where $\thr\in[0,1]$ is a decision threshold applied to the localizer's
+confidence $\bel_{m,n}$. Two distinct factors shape $(\Pmd,\Pfa)$: the
+\emph{confidence threshold} $\thr$ (where we cut the soft score) and the
+\emph{geometric accuracy} of the box (how well its frequency support matches
+the true emission, quantified later by the IoU error $\eloc$). The
+operating-point analysis of Theorem~\ref{thm:tradeoff} optimizes over $\thr$,
+while the localization-error model of Assumption~\ref{as:localization}
+captures the geometric contribution; their separation is made explicit in the
+bound \eqref{eq:loc_to_cell}. Both $\Pmd$ and $\Pfa$ are functions of $\thr$;
+this dependence is the lever in the trade-off of
+Theorem~\ref{thm:tradeoff} (Section~\ref{sec:theory}).
+
+\subsection{Access Model: Continuous Resource Selection}
+\label{subsec:access}
+The SU operates a sense-then-access frame: the sensing phase estimates the
+occupied frequency ranges, and the access phase of the \emph{same} frame
+transmits in the ranges it deems idle. Because both phases share the frame,
+temporal alignment is given, and the access decision turns on \emph{which
+frequencies} are free---making frequency-localization accuracy, rather than
+temporal extent, the quantity that governs access performance (formalized in
+Section~\ref{sec:theory}). At each frame the SU chooses a continuous TF
+resource block together with a transmit power level,
+\begin{equation}
+\act \;=\; \bigl(\afc,\, \aBW,\, \ats,\, \adur,\, \pwr\bigr),
+\label{eq:action}
+\end{equation}
+subject to the bandwidth demand, power, and PU-protection constraints
+\begin{equation}
+\aBW \ge \dmin, \quad 0 \le \pwr \le \pmax, \quad
+\Prob(\text{collision}) \le \Pcolmax .
+\label{eq:constraints}
+\end{equation}
+A \emph{collision} occurs when the SU block overlaps an occupied cell:
+\begin{equation}
+\mathrm{Col}(\act) \defeq
+\Ind\!\Bigl\{\, \exists\,\cell \in \mathcal{A}(\act):\; \occ_{m,n}=1 \,\Bigr\},
+\label{eq:collision}
+\end{equation}
+where $\mathcal{A}(\act)$ is the set of TF cells covered by action $\act$.
+Transmission succeeds (yielding an ACK) iff $\mathrm{Col}(\act)=0$ and the
+allocated bandwidth meets the demand.
+
+\subsection{Partially Observed Control Formulation}
+\label{subsec:pomdp}
+The SU never observes the true occupancy $\occmap$ directly; it observes only
+the wideband spectrogram $\spec_t$ and, after transmitting, a one-bit
+ACK/NACK. The control problem is therefore partially observed. We make the
+roles explicit to avoid conflating the detector output with a Bayesian
+belief.
+
+\paragraph*{Hidden state} The hidden state is the true PU occupancy together
+with the underlying emission parameters,
+$\hidden_t=\bigl(\occmap_t,\{\boxk\}\bigr)$, evolving as a
+(piecewise-stationary) Markov process.
+
+\paragraph*{Observation} The raw observation is the spectrogram $\spec_t$ and
+the ACK/NACK $\mathrm{ACK}_t\in\{0,1\}$. The sensing tier maps $\spec_t$ to
+the per-cell soft occupancy estimate $\belmap_t\in[0,1]^{\Nf\times\Nt}$ of
+\eqref{eq:belief}. We stress that $\belmap_t$ is a learned \emph{soft
+occupancy observation feature}, not the exact Bayesian posterior
+$\Prob(\hidden_t\mid\text{history})$; it plays the role of an
+\emph{approximate sufficient statistic} of the observation history for the
+access decision.
+
+\paragraph*{Access state} The access policy acts on the recent history of
+this feature,
+\begin{equation}
+\state_t \;=\; \bigl(\belmap_{t-\histlen+1},\dots,\belmap_{t}\bigr)
+\;\in\; [0,1]^{\histlen \times \Nf \times \Nt},
+\label{eq:state}
+\end{equation}
+stacked over a short window to capture temporal correlation of PU activity.
+This continuous, uncertainty-bearing state is the central departure from
+prior DRL-DSA work, whose state is a binary fixed-channel occupancy vector.
+Because $\belmap$ approximates rather than equals the exact posterior, the
+formulation is a \emph{partially observed control problem with a learned
+observation feature} rather than a belief-MDP in the strict Bayesian sense;
+the theoretical claims of Section~\ref{sec:theory} are stated against this
+representation and do not presume exact belief recursion.
+
+\paragraph*{Reward} We use an uncertainty-aware reward that rewards
+throughput, penalizes PU collisions, and discourages transmitting into
+low-confidence regions:
+\begin{equation}
+\rew(\state_t,\act_t) \;=\;
+\underbrace{\thru(\act_t)}_{\text{throughput}}
+\;-\; \lambda_{\mathrm{c}}\,\mathrm{Col}(\act_t)
+\;-\; \lambda_{\mathrm{u}}\,\mathcal{U}\!\left(\belmap_t,\act_t\right),
+\label{eq:reward}
+\end{equation}
+where $\mathcal{U}(\cdot)$ measures the residual occupancy uncertainty over
+the chosen block and $\lambda_{\mathrm{c}},\lambda_{\mathrm{u}}\ge 0$ are
+weights. The connection of the $\lambda_{\mathrm{u}}$ term to a
+risk-sensitive objective is discussed in Section~\ref{sec:framework}.
+
+\paragraph*{Objective} The SU seeks a policy
+$\pol:\mathcal{S}\to\mathcal{A}$ maximizing the expected discounted return
+subject to the PU-protection constraint,
+\begin{equation}
+\begin{aligned}
+\polopt = \argmax_{\pol}\;
+&\E_{\pol}\!\left[\sum_{t=0}^{\infty}\disc^{t}
+\rew(\state_t,\act_t)\right]\\[-1pt]
+\text{s.t.}\quad
+&\E_{\pol}\!\left[\mathrm{Col}(\act_t)\right] \le \Pcolmax .
+\end{aligned}
+\label{eq:objective}
+\end{equation}
+
+\begin{remark}
+Setting $\belmap$ to a binary fixed-channel vector and restricting $\act$ to
+a single grid channel recovers the standard formulation of
+\cite{wang2018,zhong2019} as a special case. Proposition~\ref{thm:sufficiency}
+formalizes that this restriction can be strictly suboptimal under grid misalignment.
+\end{remark}

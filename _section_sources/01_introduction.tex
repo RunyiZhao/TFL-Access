@@ -1,0 +1,107 @@
+\section{Introduction}
+\label{sec:introduction}
+
+\IEEEPARstart{S}{pectrum} scarcity has become a defining bottleneck for
+modern and forthcoming wireless systems. Dynamic spectrum access (DSA),
+in which secondary users (SUs) opportunistically reuse spectrum left idle by
+primary users (PUs), is widely regarded as a key remedy and underpins
+emerging shared-spectrum regimes such as the citizen broadband radio service
+(CBRS)~\cite{sohul2015cbrs}. Realizing DSA requires solving two tightly
+coupled subproblems: \emph{spectrum sensing}, which estimates what spectrum
+is free, and \emph{spectrum access}, which decides how to use it. Because the
+quality of sensing directly bounds what access can achieve, and because the
+performance after access is the only meaningful measure of whether a sensing
+decision was good, a joint treatment of the two is necessary rather than
+optional.
+
+Two largely separate research lines have matured around these subproblems.
+
+The first, \emph{time--frequency (TF) localization} (TFL), treats the
+wideband spectrogram as an image and applies object detection to output, for
+every emission, a bounding box describing its center frequency, bandwidth,
+start time, and duration~\cite{prasad2020,li2022hf}. Because the wideband
+spectrogram and image object detection are structurally similar, a sequence
+of detectors has been adapted to TFL, including region-based and YOLO-family
+architectures~\cite{prasad2020,li2022hf}, anchor-free keypoint detectors that
+resolve the prior-anchor mismatch caused by the diverse aspect ratios of RF
+emissions~\cite{zhao2024uav}, and transformer backbones that remain robust
+when emissions overlap in the TF plane~\cite{zhao2025trtfl_ssl,
+zhang2024spectrumtransformer}. This line has steadily improved how precisely
+and robustly a wideband sensor can describe occupancy. Yet it terminates at
+sensing: it produces a rich, continuous, often uncertainty-bearing
+description of the spectrum and then does nothing with it. The access
+decision is left out of scope.
+
+The second line applies \emph{deep reinforcement learning (DRL) to DSA},
+learning access---and sometimes sensing---policies under partial
+observability~\cite{wang2018,zhong2019,xu2020partial,li2020aggregation,
+li2024hmadrl,bokobza2023ddqsa}. Deep $Q$-networks~\cite{wang2018},
+actor--critic methods~\cite{zhong2019}, recurrent $Q$-networks for partial
+observation~\cite{xu2020partial,hausknecht2015drqn}, and channel-aggregation
+schemes~\cite{li2020aggregation} have progressively enlarged the action space
+and improved sample efficiency. Almost without exception, however, this line
+assumes the wideband spectrum is pre-partitioned into a \emph{fixed grid of
+channels}, each summarized by a binary good/bad or idle/busy state.
+
+These two lines are separated by an assumption that is rarely examined. The
+DRL-DSA line inherits a fixed channelization in which PU activity is aligned
+to grid cells. But real wideband emissions occupy \emph{arbitrary} center
+frequencies, bandwidths, and durations---and in shared-spectrum regimes such
+as CBRS the center frequency and subchannel division of incumbents change
+adaptively with traffic and channel state~\cite{sohul2015cbrs,zhao2025trtfl_ssl}.
+This is precisely the regime the TFL line was built to handle. Once occupancy
+is not grid-aligned, the ``good/bad channel'' state that DRL-DSA agents
+consume is itself a lossy, and sometimes incorrect, summary of the
+environment: a single grid cell may straddle the boundary of a PU emission,
+forcing the agent either to collide or to abandon usable spectrum. To our
+knowledge, no prior work feeds the \emph{continuous, uncertainty-bearing} TF
+occupancy estimate produced by a localizer \emph{into} the access decision as
+the agent's state, nor analyzes how the localizer's errors propagate to access
+performance and PU protection. Closing that loop, and analyzing it, is the
+subject of this paper.
+
+We propose \emph{Localization-Aware Joint Spectrum Sensing and Access}
+(LA-JSSA), in which the sensing module emits a continuous occupancy
+\emph{belief map} over the TF plane that directly serves as the access
+agent's state, and the agent selects a continuous TF resource block for
+transmission. We further develop a distributional~\cite{dabney2018qrdqn}, risk-sensitive access tier
+(D-LA-JSSA) tailored to the belief-state representation. Our contributions
+are:
+\begin{enumerate}
+\item \textbf{A belief-map closed loop.} We formulate joint sensing and
+access as a partially observed control problem whose state is the continuous TF occupancy
+posterior rather than a fixed-channel vector
+(Section~\ref{sec:system_model}), realized by a two-timescale architecture
+that couples a supervised TFL sensing tier to a reinforcement-learned access
+tier without unstable end-to-end training (Section~\ref{sec:framework}).
+\item \textbf{Error-propagation analysis and a three-way trade-off.} We map
+cell-level localization error ($\Pmd,\Pfa$) to PU-collision probability and
+SU throughput, yielding a sensing-accuracy/throughput/PU-protection
+trade-off with a characterized optimal belief threshold $\thr^\star$
+(Theorem~\ref{thm:tradeoff}), and a linear bound on the price of imperfect
+localization (Corollary~\ref{cor:price}).
+\item \textbf{Risk-sensitive access via a distributional critic.} We cast
+access as a \emph{distributional} RL problem~\cite{dabney2018qrdqn,ma2020dsac} with a tail-risk (CVaR)
+constraint on PU collision, and show its operating point is at least as
+conservative as the mean-constrained one, with a first-order estimate of the
+conservativeness margin (Theorem~\ref{thm:cvar},
+Corollary~\ref{cor:cvargap}).
+\item \textbf{Information refinement and a stylized regret analysis.} We show
+the belief-state policy class is no worse than any coarser fixed-channel
+representation under a common action space
+(Proposition~\ref{thm:sufficiency}), with a strict gap on a misaligned
+instance (Example~\ref{ex:strictgap}); and, for a tractable tabular
+surrogate, we separate the regret into a vanishing learning term and a
+policy-independent sensing gap (Proposition~\ref{thm:regret}). The latter is a
+stylized analysis, not a guarantee for the deep agent.
+\item \textbf{Validation.} Simulations on a continuous-bandwidth, non-grid
+PU model confirm the predicted operating point and the tail-risk reduction
+(Section~\ref{sec:simulation}).
+\end{enumerate}
+The remainder of the paper is organized as follows.
+Section~\ref{sec:related_work} reviews related work,
+Section~\ref{sec:system_model} formulates the model,
+Section~\ref{sec:framework} presents LA-JSSA,
+Section~\ref{sec:theory} develops the theory,
+Section~\ref{sec:simulation} reports experiments, and
+Section~\ref{sec:conclusion} concludes.
