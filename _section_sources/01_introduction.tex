@@ -21,10 +21,10 @@ wideband spectrogram as an image and applies object detection to output, for
 every emission, a bounding box describing its center frequency, bandwidth,
 start time, and duration~\cite{prasad2020,li2022hf}. Because the wideband
 spectrogram and image object detection are structurally similar, a sequence
-of detectors has been adapted to TFL, including region-based and YOLO-family
-architectures~\cite{prasad2020,li2022hf}, anchor-free keypoint detectors that
-resolve the prior-anchor mismatch caused by the diverse aspect ratios of RF
-emissions~\cite{zhao2024uav}, and transformer backbones that remain robust
+of detectors has been adapted to TFL, including region-based and You Only Look
+Once (YOLO)-family architectures~\cite{prasad2020,li2022hf}, anchor-free
+keypoint detectors that resolve the prior-anchor mismatch caused by the diverse
+aspect ratios of radio-frequency (RF) emissions~\cite{zhao2024uav}, and transformer backbones that remain robust
 when emissions overlap in the TF plane~\cite{zhao2025trtfl_ssl,
 zhang2024spectrumtransformer}. This line has steadily improved how precisely
 and robustly a wideband sensor can describe occupancy. Yet it terminates at
@@ -35,7 +35,7 @@ decision is left out of scope.
 The second line applies \emph{deep reinforcement learning (DRL) to DSA},
 learning access---and sometimes sensing---policies under partial
 observability~\cite{wang2018,zhong2019,xu2020partial,li2020aggregation,
-li2024hmadrl,bokobza2023ddqsa}. Deep $Q$-networks~\cite{wang2018},
+li2024hmadrl,bokobza2023ddqsa}. Deep $Q$-networks (DQNs)~\cite{wang2018},
 actor--critic methods~\cite{zhong2019}, recurrent $Q$-networks for partial
 observation~\cite{xu2020partial,hausknecht2015drqn}, and channel-aggregation
 schemes~\cite{li2020aggregation} have progressively enlarged the action space
@@ -81,8 +81,9 @@ trade-off with a characterized optimal belief threshold $\thr^\star$
 (Theorem~\ref{thm:tradeoff}), and a linear bound on the price of imperfect
 localization (Corollary~\ref{cor:price}).
 \item \textbf{Risk-sensitive access via a distributional critic.} We cast
-access as a \emph{distributional} RL problem~\cite{dabney2018qrdqn,ma2020dsac} with a tail-risk (CVaR)
-constraint on PU collision, and show its operating point is at least as
+access as a \emph{distributional} reinforcement-learning (RL)
+problem~\cite{dabney2018qrdqn,ma2020dsac} with a tail-risk conditional
+value-at-risk (CVaR) constraint on PU collision, and show its operating point is at least as
 conservative as the mean-constrained one, with a first-order estimate of the
 conservativeness margin (Theorem~\ref{thm:cvar},
 Corollary~\ref{cor:cvargap}).
@@ -95,8 +96,10 @@ surrogate, we separate the regret into a vanishing learning term and a
 policy-independent sensing gap (Proposition~\ref{thm:regret}). The latter is a
 stylized analysis, not a guarantee for the deep agent.
 \item \textbf{Validation.} Simulations on a continuous-bandwidth, non-grid
-PU model confirm the predicted operating point and the tail-risk reduction
-(Section~\ref{sec:simulation}).
+PU model confirm the predicted operating point and the tail-risk reduction,
+validate the full sensing-error propagation chain end to end, and show the
+belief-map advantage is monotone in representation richness and robust across
+traffic, geometry, and SNR regimes (Section~\ref{sec:simulation}).
 \end{enumerate}
 The remainder of the paper is organized as follows.
 Section~\ref{sec:related_work} reviews related work,

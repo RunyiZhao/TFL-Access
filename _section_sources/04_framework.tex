@@ -16,7 +16,7 @@ and the risk-constrained critic.
 \centering
 \includegraphics[width=0.95\textwidth]{figures/fig_arch.pdf}
 \caption{The D-LA-JSSA two-timescale architecture. \emph{Bottom (slow,
-supervised):} wideband I/Q is transformed to a spectrogram and passed to an
+supervised):} wideband in-phase/quadrature (I/Q) data are transformed to a spectrogram and passed to an
 anchor-free TF localizer $\phi_{\mathrm{sen}}$ that emits a soft occupancy
 belief map $\belmap$ (no NMS), encoded across time by a conv$_f$\,+\,LRU$_t$
 encoder (M2). \emph{Top (fast, reinforcement):} a quantile critic feeds a
@@ -38,7 +38,8 @@ spectrograms with a supervised objective, so that the cell-level error rates
 $\Pmd(\thr),\Pfa(\thr)$ of Assumption~\ref{as:cellerror} are stable; the
 access tier then learns against an approximately stationary observation
 channel. This mirrors the decoupled offline/online structure that is known
-to accelerate POMDP learning when the observation model is fixed.
+to accelerate partially observed Markov decision process (POMDP) learning
+when the observation model is fixed.
 
 \subsection{Sensing Tier: Belief-Map Generation}
 \label{subsec:sensing_tier}
@@ -50,7 +51,7 @@ region proposal network, which couples poorly to continuous, arbitrary
 bandwidths~\cite{zhao2024uav}; when emissions overlap, a transformer backbone
 that exploits TF correlation further improves
 robustness~\cite{zhao2025trtfl_ssl}. The key departure from prior
-TF-localization work is that we do \emph{not} apply non-maximum suppression
+TF-localization work is that we do \emph{not} apply NMS
 to collapse the heatmap into hard boxes; instead the soft per-cell confidence
 is retained as the belief map $\belmap\in[0,1]^{\Nf\times\Nt}$. This
 preserves exactly the uncertainty that Theorem~\ref{thm:tradeoff} and the
@@ -72,22 +73,24 @@ maps. The belief map is a two-dimensional TF object, so we encode it with a
 spatial shape of emissions (their TF extent), while a point-wise linear
 recurrent unit (LRU) along the time axis captures the long-range correlation
 of PU on/off dynamics, producing a compact latent state
-$\bm{z}_t = \mathrm{Enc}(\state_t)$. We adopt an LRU rather than an LSTM or a
-Transformer because recent evidence shows point-wise recurrent state-space
+$\bm{z}_t = \mathrm{Enc}(\state_t)$. We adopt an LRU rather than a long
+short-term memory (LSTM) network or a Transformer because recent evidence
+shows point-wise recurrent state-space
 models outperform attention on partially observable RL while remaining
 parallelizable and lightweight~\cite{lu2024rethinking,morad2025cae}. The
 recurrent encoding plays the role of the belief-update / sufficient-statistic
-recursion of a POMDP. We ablate this choice (LRU vs. ConvLSTM) in
-Section~\ref{sec:simulation}.
+recursion of a POMDP. We ablate this choice (LRU vs.\ convolutional LSTM,
+ConvLSTM) in Section~\ref{sec:simulation}.
 
 \subsection{Access Tier: Continuous Resource Selection}
 \label{subsec:access_tier}
 The access tier maps the latent state to the resource-block action
 \eqref{eq:action}. We consider two instantiations:
 \begin{itemize}
-\item a value-based agent over a discretized action grid (deep $Q$-network~\cite{hausknecht2015drqn}
+\item a value-based agent over a discretized action grid (DQN~\cite{hausknecht2015drqn}
 on $\bm{z}_t$), suitable when the TF action set is coarsely quantized; and
-\item a continuous-control agent (deterministic policy gradient~\cite{lillicrap2016ddpg}) that
+\item a continuous-control agent (deep deterministic policy gradient,
+DDPG~\cite{lillicrap2016ddpg}) that
 outputs $(\afc,\aBW,\ats,\adur,\pwr)$ directly, suitable for fine-grained
 continuous resource selection.
 \end{itemize}

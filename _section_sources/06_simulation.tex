@@ -1,17 +1,24 @@
 \section{Simulation Results}
 \label{sec:simulation}
 
-We evaluate six questions: (Q1) does the empirical operating point match the
+We evaluate nine questions: (Q1) does the empirical operating point match the
 optimal belief threshold predicted by Theorem~\ref{thm:tradeoff}; (Q2) does
 the continuous belief-map state confer the access-side advantage implied by
 Proposition~\ref{thm:sufficiency}; (Q3) does the distributional CVaR
 constraint reduce collision tail risk (Theorem~\ref{thm:cvar}); (Q4) what does
 each component (M1/M2/M3) contribute; (Q5) is access performance governed by
 \emph{frequency}- rather than temporal-localization accuracy, as the frame
-structure of Section~\ref{subsec:access} predicts; and (Q6) does sharper
+structure of Section~\ref{subsec:access} predicts; (Q6) does sharper
 frequency localization translate into better access, as predicted by the
-localization-error model \eqref{eq:loc_to_cell} and Corollary~\ref{cor:loc}?
-For Q5--Q6 we use a localization-aware variant of the environment in which the
+localization-error model \eqref{eq:loc_to_cell} and Corollary~\ref{cor:loc};
+(Q7) is the \emph{complete} error-propagation chain
+$\eloc\!\to\!(\Pmd,\Pfa)\!\to\!\Pcol\!\to\!\thru$ borne out at every link, not
+just its endpoints; (Q8) is the access advantage monotone in the
+\emph{information richness} of the state representation, as
+Proposition~\ref{thm:sufficiency} implies, rather than an artifact of feature
+engineering; and (Q9) does the belief-map advantage \emph{generalize} across
+stressed environments (traffic burstiness, PU density, and sensing SNR)?
+For Q5--Q9 we use a localization-aware variant of the environment in which the
 belief map is rendered from \emph{estimated PU frequency intervals} with a
 controllable IoU error, so that cell-level error is a consequence of
 localization geometry rather than postulated directly.
@@ -24,8 +31,8 @@ piecewise-stationary two-state Markov process. For the tail-risk study (Q3)
 we additionally inject occasional correlated activity bursts, so that the
 collision return has a genuine heavy tail rather than a degenerate one. The
 sensing tier is modeled by a soft belief generator whose cell-level scores
-follow a logistic-Gaussian observation model; its receiver operating
-characteristic is measured empirically (Fig.~\ref{fig:tradeoff}a) and is
+follow a logistic-Gaussian observation model; its ROC is measured empirically
+(Fig.~\ref{fig:tradeoff}a) and is
 smooth, concave, and monotone, satisfying
 Assumptions~\ref{as:cellerror}--\ref{as:roc}. The access agents share a common
 discrete resource-block action set ($3$ bandwidths $\times$ $16$ center
@@ -44,8 +51,9 @@ contribution of each component (state representation, risk constraint) is
 isolated under a matched action space and reproducible without specialized
 hardware. The mapping between Algorithm~\ref{alg:lajssa} and this realization
 is one-to-one at the level of the M1 (CVaR dual) and state-coarsening
-ablations; the full conv/LRU encoder and a GPU-scale, deep PPO/SAC/QR-DQN
-comparison are provided as a PyTorch release for the camera-ready (see
+ablations; the full conv/LRU encoder and a GPU-scale comparison against deep
+PPO, SAC, and quantile-regression deep-$Q$-network (QR-DQN) baselines are
+provided as a PyTorch release for the camera-ready (see
 Section~\ref{subsec:limitations}). We therefore report these results as
 evidence for the \emph{qualitative orderings} predicted by the theory, not as
 a final performance benchmark.
@@ -233,7 +241,7 @@ on frequency, not time. Error bars are $\pm$ one standard deviation.}
 The preceding experiments fix the localizer and vary the access side. We now
 do the converse, directly testing the TFL-grounded chain of
 Section~\ref{sec:theory}: we sweep the localizer quality, and for each level
-measure the mean frequency intersection-over-union (IoU) of its estimated
+measure the mean frequency IoU of its estimated
 intervals, the localization error $\eloc=1-\mathrm{IoU}$, the induced
 cell-level error $(\Pmd,\Pfa)$ at $\thr^\star$, and the resulting access
 throughput of a fixed greedy belief policy (so the sensing-to-access map is
@@ -277,12 +285,123 @@ Freq.\ vs.\ time: max collision & freq\,$\gg$\,time & $0.080$/$0.000$ & freq win
 \end{tabular}
 \end{table}
 
+\subsection{Q7: Full Sensing-Error Propagation Chain}
+\label{subsec:q7}
+Q6 verified the two end links of the theoretical chain
+($\eloc\!\to\!(\Pmd,\Pfa)$ and $\eloc\!\to\!$ throughput). We now validate the
+\emph{complete} chain of Section~\ref{sec:theory},
+\[
+\eloc \;\to\; (\Pmd,\Pfa) \;\to\; \Pcol \;\to\; \thru,
+\]
+end to end, including the intermediate collision link
+$\Pcol$ that Lemma~\ref{lem:collision} predicts. Sweeping the localizer quality
+as in Q6, Fig.~\ref{fig:errorchain} plots every link against the localization
+error $\eloc=1-\mathrm{IoU}$. All four links are essentially linear in
+$\eloc$, as Assumptions~\ref{as:localization}--\ref{as:cellerror} and
+Lemmas~\ref{lem:collision}--\ref{lem:throughput} require: the cell-level miss
+and false-alarm rates rise linearly (Pearson $r=0.994$ and $0.957$), the
+induced PU-collision probability $\Pcol$ rises linearly ($r=0.982$), and the
+access throughput falls---equivalently, the throughput gap rises---linearly
+($r=0.981$). The consistency of every link, not merely the endpoints,
+shows the theoretical modeling is structural rather than coincidental: each
+arrow of the chain is borne out quantitatively on the same sweep.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{figures/fig_error_chain.pdf}
+\caption{Full error-propagation consistency. As the localization error
+$\eloc=1-\mathrm{IoU}$ grows, every link of the chain
+$\eloc\!\to\!(\Pmd,\Pfa)\!\to\!\Pcol\!\to\!\thru$ moves linearly:
+\emph{(a)} cell-level $\Pmd,\Pfa$; \emph{(b)} PU-collision $\Pcol$;
+\emph{(c)} throughput; \emph{(d)} throughput gap. Dashed lines are linear
+fits with the Pearson $r$ annotated; error bars are $\pm$ one standard
+deviation over ten seeds.}
+\label{fig:errorchain}
+\end{figure}
+
+\subsection{Q8: Representation Richness vs.\ Feature Engineering}
+\label{subsec:q8}
+A natural objection to Proposition~\ref{thm:sufficiency} is whether the belief
+map is \emph{truly} necessary or merely better feature engineering. To separate
+the two, we hold the access \emph{rule}, environment, and action set fixed and
+vary \emph{only} the state representation along a single axis of increasing
+information richness: a binarized fixed grid at $K\in\{4,8,16\}$ channels, the
+full-resolution \emph{hard} occupancy vector ($\Nf=64$ thresholded cells, the
+$-$M2 representation), and the full-resolution \emph{soft} belief map (ours).
+Every representation is consumed by the \emph{same} one-step
+reward-maximizing access rule (treating the representation as an occupancy
+probability and maximizing the reward \eqref{eq:reward}), so the experiment
+isolates the information each representation preserves from any learning
+dynamics. Fig.~\ref{fig:representation} shows that the access objective improves
+\emph{monotonically} with information richness: the per-step reward
+\eqref{eq:reward} rises and the PU-collision rate falls as the representation
+is refined, with the soft belief map at the top of the ordering (Spearman rank
+correlation $+1.00$ between richness and reward, and $+1.00$
+between richness and $-$collision). The collision rate drops from
+$0.18$ for the coarse $K{=}4$ grid to $0.004$ for the soft belief
+map---over an order of magnitude. Because the only thing that changes is how
+much occupancy information the state retains, the gain is attributable to the
+representation, not to incidental feature engineering: a coarsening of the
+belief can only lose value, exactly as the information-refinement argument of
+Proposition~\ref{thm:sufficiency} predicts.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.92\columnwidth]{figures/fig_representation.pdf}
+\caption{Representation-richness ablation under a matched access rule,
+environment, and action set. The access reward \eqref{eq:reward} (left axis)
+rises and the PU-collision rate (right axis) falls monotonically as the state
+is refined from a coarse $K{=}4$ grid to the full-resolution soft belief map,
+isolating the value of the information the representation preserves
+(Proposition~\ref{thm:sufficiency}). Error bars are $\pm$ one standard
+deviation over twelve seeds.}
+\label{fig:representation}
+\end{figure}
+
+\subsection{Q9: Cross-Environment Robustness}
+\label{subsec:q9}
+To test whether the belief-map advantage is specific to the nominal synthetic
+instance, we stress the environment along the three axes that most affect a
+wideband DSA system and re-evaluate the proposed soft belief map against the
+prior-work fixed-channel grid~\cite{wang2018} under the \emph{same}
+reward-greedy access rule and action set used in Q8: \emph{(A) traffic}---nominal
+piecewise-stationary Markov activity vs.\ correlated heavy-tail \emph{bursts};
+\emph{(B) spectrum geometry}---\emph{sparse} (one PU), nominal (three), and
+\emph{dense} (six overlapping PUs); and \emph{(C) channel}---\emph{low-} and
+\emph{high-SNR} sensing in addition to the nominal setting.
+Fig.~\ref{fig:robustness} reports the access reward \eqref{eq:reward} and the
+PU-collision rate across all six regimes for the full-resolution soft belief map
+against the binarized $K{=}8$ grid. The belief map attains a higher access
+reward in every one of the six regimes and a lower-or-equal collision rate in
+all of them, so the structural advantage predicted by
+Proposition~\ref{thm:sufficiency} is not an artifact of one configuration: it
+persists across traffic burstiness, PU density, and sensing quality. The gap is
+largest in the \emph{dense} and \emph{bursty} regimes, where a coarse
+fixed-channel state most often straddles a PU boundary or misses a sudden
+co-activation---the very misalignment mechanism quantified in
+Example~\ref{ex:strictgap}.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{figures/fig_robustness.pdf}
+\caption{Cross-environment robustness. \emph{(a)} Access reward
+\eqref{eq:reward} and \emph{(b)} PU-collision rate of the proposed soft belief
+map vs.\ the prior-work fixed-channel grid~\cite{wang2018}, under a matched
+reward-greedy access rule, across six stress regimes spanning traffic
+burstiness, PU density, and SNR. The belief-map advantage (higher reward, lower
+collision) persists in every regime. Error bars are $\pm$ one standard
+deviation over twelve seeds.}
+\label{fig:robustness}
+\end{figure}
+
 \subsection{Discussion and Limitations}
 \label{subsec:limitations}
 The trade-off prediction (Q1) is confirmed crisply, the CVaR study (Q3) and
 ablation (Q4) support the design (M2/M3 govern mean throughput and collision,
-M1 the tail), and Q5/Q6 confirm the localization-to-access chain. Three
-limitations bound how far the present evidence reaches.
+M1 the tail), Q5--Q7 confirm the localization-to-access chain at every link,
+Q8 shows the access objective is monotone in representation richness, and Q9
+shows the belief-map advantage survives traffic, geometry, and SNR stress.
+Three limitations bound how far the present evidence reaches.
 
 \emph{Scale and statistics.} As noted in the setup, the agents are a compact
 CPU realization, not the full conv-frequency/LRU encoder, and at ten seeds the
@@ -295,9 +414,12 @@ safety layer, for which we release a GPU-ready PyTorch implementation.
 \emph{Synthetic environment.} The detector ROC and PU process are parametric,
 constructed to \emph{isolate} the modeling assumptions rather than to flatter
 the method; they should be read as checking the theory's structural
-assumptions and predictions for mutual consistency on a controlled instance,
-not as evidence they hold on real hardware. Validation on captured wideband
-data is left to future work.
+assumptions and predictions for mutual consistency on a controlled instance.
+The robustness suite (Q9) widens this check across traffic, geometry, and SNR
+regimes, so the conclusions are not tied to a single configuration; it does
+not, however, substitute for measured data. Validation on captured wideband
+data---where the localizer ROC and PU statistics are empirical rather than
+parametric---is left to future work.
 
 \emph{Theory--experiment scope.} The regret result
 (Proposition~\ref{thm:regret}) analyzes a tabular surrogate, not the deep agent

@@ -168,14 +168,15 @@ P_{\mathrm{fa}}$) to PU-collision probability and throughput loss, yielding a
 three-way sensing-accuracy/throughput/PU-protection trade-off with a
 characterized operating point; (ii) an information-refinement result showing
 the belief-state representation is no worse than a coarser fixed-channel one
-under a common action space; and (iii) a risk-sensitive (CVaR) access
-formulation whose operating point is provably at least as conservative as
-the mean-constrained one. A stylized regret analysis for a tabular surrogate
+under a common action space; and (iii) a risk-sensitive, conditional
+value-at-risk (CVaR) access formulation whose operating point is provably at
+least as conservative as the mean-constrained one. A stylized regret analysis for a tabular surrogate
 separates a vanishing learning cost from a policy-independent sensing gap.
 Simulations on a continuous-bandwidth, non-grid PU model confirm the
 predicted operating point and the tail-risk reduction, and show that access
 performance is governed by \emph{frequency}-localization accuracy---which the
-analysis ties to access throughput through the localizer's IoU.
+analysis ties to access throughput through the localizer's
+intersection-over-union (IoU).
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -205,10 +206,10 @@ wideband spectrogram as an image and applies object detection to output, for
 every emission, a bounding box describing its center frequency, bandwidth,
 start time, and duration~\cite{prasad2020,li2022hf}. Because the wideband
 spectrogram and image object detection are structurally similar, a sequence
-of detectors has been adapted to TFL, including region-based and YOLO-family
-architectures~\cite{prasad2020,li2022hf}, anchor-free keypoint detectors that
-resolve the prior-anchor mismatch caused by the diverse aspect ratios of RF
-emissions~\cite{zhao2024uav}, and transformer backbones that remain robust
+of detectors has been adapted to TFL, including region-based and You Only Look
+Once (YOLO)-family architectures~\cite{prasad2020,li2022hf}, anchor-free
+keypoint detectors that resolve the prior-anchor mismatch caused by the diverse
+aspect ratios of radio-frequency (RF) emissions~\cite{zhao2024uav}, and transformer backbones that remain robust
 when emissions overlap in the TF plane~\cite{zhao2025trtfl_ssl,
 zhang2024spectrumtransformer}. This line has steadily improved how precisely
 and robustly a wideband sensor can describe occupancy. Yet it terminates at
@@ -219,7 +220,7 @@ decision is left out of scope.
 The second line applies \emph{deep reinforcement learning (DRL) to DSA},
 learning access---and sometimes sensing---policies under partial
 observability~\cite{wang2018,zhong2019,xu2020partial,li2020aggregation,
-li2024hmadrl,bokobza2023ddqsa}. Deep $Q$-networks~\cite{wang2018},
+li2024hmadrl,bokobza2023ddqsa}. Deep $Q$-networks (DQNs)~\cite{wang2018},
 actor--critic methods~\cite{zhong2019}, recurrent $Q$-networks for partial
 observation~\cite{xu2020partial,hausknecht2015drqn}, and channel-aggregation
 schemes~\cite{li2020aggregation} have progressively enlarged the action space
@@ -265,8 +266,9 @@ trade-off with a characterized optimal belief threshold $\thr^\star$
 (Theorem~\ref{thm:tradeoff}), and a linear bound on the price of imperfect
 localization (Corollary~\ref{cor:price}).
 \item \textbf{Risk-sensitive access via a distributional critic.} We cast
-access as a \emph{distributional} RL problem~\cite{dabney2018qrdqn,ma2020dsac} with a tail-risk (CVaR)
-constraint on PU collision, and show its operating point is at least as
+access as a \emph{distributional} reinforcement-learning (RL)
+problem~\cite{dabney2018qrdqn,ma2020dsac} with a tail-risk conditional
+value-at-risk (CVaR) constraint on PU collision, and show its operating point is at least as
 conservative as the mean-constrained one, with a first-order estimate of the
 conservativeness margin (Theorem~\ref{thm:cvar},
 Corollary~\ref{cor:cvargap}).
@@ -279,8 +281,10 @@ surrogate, we separate the regret into a vanishing learning term and a
 policy-independent sensing gap (Proposition~\ref{thm:regret}). The latter is a
 stylized analysis, not a guarantee for the deep agent.
 \item \textbf{Validation.} Simulations on a continuous-bandwidth, non-grid
-PU model confirm the predicted operating point and the tail-risk reduction
-(Section~\ref{sec:simulation}).
+PU model confirm the predicted operating point and the tail-risk reduction,
+validate the full sensing-error propagation chain end to end, and show the
+belief-map advantage is monotone in representation richness and robust across
+traffic, geometry, and SNR regimes (Section~\ref{sec:simulation}).
 \end{enumerate}
 The remainder of the paper is organized as follows.
 Section~\ref{sec:related_work} reviews related work,
@@ -304,7 +308,8 @@ covariance-based detectors---is surveyed
 in~\cite{yucek2009survey,axell2012spectrum,arjoune2019comprehensive}.
 Scanning-based wideband sensing divides the spectrum into subbands according
 to a known channelization and applies narrowband detection in each
-subband~\cite{wang2018}. In shared bands such as CBRS and ISM, however, the
+subband~\cite{wang2018}. In shared bands such as CBRS and the industrial,
+scientific, and medical (ISM) bands, however, the
 center frequency and subchannel division of incumbents change adaptively with
 service demand and channel state, so methods that presuppose a fixed
 channelization fail~\cite{sohul2015cbrs}. Deep learning has since been applied
@@ -315,7 +320,8 @@ magnitude spectrogram as an image and applying object detection, a detector
 can simultaneously estimate the time and frequency support of every
 emission~\cite{prasad2020,prasad2021spectrum}.
 
-A detector lineage has followed. Downscaled Faster-RCNN and YOLO-family
+A detector lineage has followed. Downscaled Faster R-CNN (region-based
+convolutional neural network) and YOLO-family
 detectors~\cite{redmon2018yolov3} were first adapted to signal TFL~\cite{prasad2020,li2022hf}. The
 diverse aspect ratios of RF emissions cause a prior-anchor mismatch in
 anchor-based detectors; anchor-free keypoint detectors with tailored matching
@@ -328,21 +334,23 @@ achieve state-of-the-art robustness~\cite{zhao2025trtfl_ssl,
 zhang2024spectrumtransformer,he2022mae}. Collectively, this line has made the
 occupancy description ever more precise and robust. \emph{Our distinction:}
 every one of these works terminates at sensing, emitting boxes (or, after
-non-maximum suppression, hard decisions) that are never coupled to an access
+non-maximum suppression (NMS), hard decisions) that are never coupled to an access
 policy. We instead retain the detector's \emph{soft} output as a belief state
 and close the loop to access.
 
 \subsection{DRL for Dynamic Spectrum Access}
 DRL-based DSA learns channel-selection policies under partial observability,
-building on the deep $Q$-network~\cite{mnih2015human} and modern
-policy-gradient methods such as PPO~\cite{schulman2017ppo} and soft
-actor--critic~\cite{haarnoja2018sac}. Deep $Q$-networks were applied to
+building on the DQN~\cite{mnih2015human} and modern
+policy-gradient methods such as proximal policy optimization
+(PPO)~\cite{schulman2017ppo} and soft actor--critic
+(SAC)~\cite{haarnoja2018sac}. DQNs were applied to
 multichannel access with correlated channel occupancy~\cite{wang2018};
 actor--critic frameworks improved performance in large action
 spaces~\cite{zhong2019}; recurrent $Q$-networks addressed partial observation
 by summarizing observation histories~\cite{xu2020partial,hausknecht2015drqn,
 xu2021deep}; reservoir-computing and multi-user variants targeted distributed
-access~\cite{chang2019distributive,naparstek2018deep}; UCB-style exploration was used in cooperative sensing~\cite{zhang2019deep}; and
+access~\cite{chang2019distributive,naparstek2018deep}; upper-confidence-bound
+(UCB)-style exploration was used in cooperative sensing~\cite{zhang2019deep}; and
 spectrum-aggregation schemes let an SU combine several idle channels to meet a
 bandwidth demand~\cite{li2020aggregation}. Related efforts apply DRL to joint
 channel and power control~\cite{tan2020deep} and to cognitive radio sensor
@@ -354,7 +362,7 @@ resource block, and---uniquely---we analyze how sensing error propagates into
 this continuous access problem.
 
 Safety and risk in RL are also relevant to our CVaR access constraint.
-Constrained MDPs~\cite{altman1999constrained} and their deep solvers
+Constrained Markov decision processes (MDPs)~\cite{altman1999constrained} and their deep solvers
 (constrained policy optimization~\cite{achiam2017cpo}, reward-constrained
 policy optimization~\cite{tessler2019reward}) enforce expected-cost limits,
 while percentile- and CVaR-based criteria~\cite{chow2017risk,rockafellar2000cvar}
@@ -373,8 +381,9 @@ access policies jointly, but in a \emph{narrowband, single-channel} setting
 without TF localization or continuous boxes~\cite{bokobza2023ddqsa}.
 Hierarchical multi-agent DRL jointly selects a sensing window and power
 allocation, yet its state remains discrete band occupancy on a fixed
-grid~\cite{li2024hmadrl}. Cooperative sensing-and-access for industrial IoT
-integrates the two via optimization rather than learning~\cite{liu2023ciiot}.
+grid~\cite{li2024hmadrl}. Cooperative sensing-and-access for the industrial
+Internet of Things (IoT) integrates the two via optimization rather than
+learning~\cite{liu2023ciiot}.
 Interference-temperature-constrained DSA formalizes PU protection but again
 on predefined channels~\cite{xing2007dsa}. \emph{Our distinction:} LA-JSSA
 operates on a two-dimensional continuous TF plane, drives access directly
@@ -388,9 +397,9 @@ treated.
 \section{System Model and Problem Formulation}
 \label{sec:system_model}
 
-We consider a single secondary user (SU) opportunistically accessing a
+We consider a single SU opportunistically accessing a
 wideband spectrum of bandwidth $\Wband$ centered at $\fc$, which is
-shared by an \emph{unknown and time-varying} number of primary-user (PU)
+shared by an \emph{unknown and time-varying} number of PU
 emissions. Such a setting arises in shared bands such as CBRS, where
 incumbents select center frequencies and bandwidths adaptively rather than on
 a fixed channel grid~\cite{sohul2015cbrs,xing2007dsa}. Unlike the
@@ -443,7 +452,7 @@ $\bigT_{\mathrm{f}}$ is the frame length. The signal is sampled at rate
 $\fs \ge \Wband$.
 
 Applying the short-time Fourier transform (STFT) operator $\STFT$ yields a
-single-resolution time--frequency (TF) representation; we work with the
+single-resolution TF representation; we work with the
 magnitude spectrogram
 \begin{equation}
 \spec \;=\; \bigl|\STFT\{\rx\}\bigr| \;\in\; \R_{\ge 0}^{\,\Nf \times \Nt},
@@ -452,8 +461,8 @@ magnitude spectrogram
 discretized into $\Nf$ frequency bins and $\Nt$ time bins. We index an
 individual TF \emph{cell} by $\cell$, $m\in\{1,\dots,\Nf\}$,
 $n\in\{1,\dots,\Nt\}$. The STFT is preferred over variable-resolution
-transforms (CWT/CQT) because spectrum monitoring weights all frequencies
-equally~\cite{prasad2020}.
+transforms (the continuous wavelet transform or constant-$Q$ transform)
+because spectrum monitoring weights all frequencies equally~\cite{prasad2020}.
 
 \subsection{Continuous Occupancy Representation}
 \label{subsec:occupancy}
@@ -462,7 +471,7 @@ Each PU emission $k$ is described by a continuous TF \emph{box}
 \boxk_k \;=\; \bigl(\bfc_k,\, \bBW_k,\, \bts_k,\, \bdur_k\bigr),
 \label{eq:box}
 \end{equation}
-i.e. center frequency, bandwidth, start time, and duration. The box maps to
+i.e.,\ center frequency, bandwidth, start time, and duration. The box maps to
 a region $\mathcal{B}_k \subset \{1,\dots,\Nf\}\times\{1,\dots,\Nt\}$ of the
 discretized TF plane. The \emph{true occupancy map} is the binary matrix
 $\occmap\in\{0,1\}^{\Nf\times\Nt}$ with
@@ -500,9 +509,9 @@ time--frequency localizer rasterized onto the cell grid: each estimated
 emission box carries a confidence score, and $\bel_{m,n}$ is the (edge-feathered)
 score of the box covering cell $(m,n)$, or a low background value where no box
 is predicted. We deliberately retain this \emph{soft} confidence $\belmap$
-rather than applying non-maximum suppression to obtain hard boxes; this
+rather than applying NMS to obtain hard boxes; this
 preserves the sensing uncertainty that the access stage will exploit
-(cf. Section~\ref{sec:framework}). The reliability of $\phi_{\mathrm{sen}}$
+(cf.\ Section~\ref{sec:framework}). The reliability of $\phi_{\mathrm{sen}}$
 is characterized at the cell level by the miss-detection and false-alarm
 probabilities
 \begin{align}
@@ -515,7 +524,8 @@ where $\thr\in[0,1]$ is a decision threshold applied to the localizer's
 confidence $\bel_{m,n}$. Two distinct factors shape $(\Pmd,\Pfa)$: the
 \emph{confidence threshold} $\thr$ (where we cut the soft score) and the
 \emph{geometric accuracy} of the box (how well its frequency support matches
-the true emission, quantified later by the IoU error $\eloc$). The
+the true emission, quantified later by the intersection-over-union (IoU)
+error $\eloc$). The
 operating-point analysis of Theorem~\ref{thm:tradeoff} optimizes over $\thr$,
 while the localization-error model of Assumption~\ref{as:localization}
 captures the geometric contribution; their separation is made explicit in the
@@ -550,14 +560,15 @@ A \emph{collision} occurs when the SU block overlaps an occupied cell:
 \label{eq:collision}
 \end{equation}
 where $\mathcal{A}(\act)$ is the set of TF cells covered by action $\act$.
-Transmission succeeds (yielding an ACK) iff $\mathrm{Col}(\act)=0$ and the
+Transmission succeeds (yielding an acknowledgment, ACK) iff $\mathrm{Col}(\act)=0$ and the
 allocated bandwidth meets the demand.
 
 \subsection{Partially Observed Control Formulation}
 \label{subsec:pomdp}
 The SU never observes the true occupancy $\occmap$ directly; it observes only
 the wideband spectrogram $\spec_t$ and, after transmitting, a one-bit
-ACK/NACK. The control problem is therefore partially observed. We make the
+ACK or negative-acknowledgment (NACK). The control problem is therefore
+partially observed. We make the
 roles explicit to avoid conflating the detector output with a Bayesian
 belief.
 
@@ -644,7 +655,7 @@ and the risk-constrained critic.
 \centering
 \includegraphics[width=0.95\textwidth]{figures/fig_arch.pdf}
 \caption{The D-LA-JSSA two-timescale architecture. \emph{Bottom (slow,
-supervised):} wideband I/Q is transformed to a spectrogram and passed to an
+supervised):} wideband in-phase/quadrature (I/Q) data are transformed to a spectrogram and passed to an
 anchor-free TF localizer $\phi_{\mathrm{sen}}$ that emits a soft occupancy
 belief map $\belmap$ (no NMS), encoded across time by a conv$_f$\,+\,LRU$_t$
 encoder (M2). \emph{Top (fast, reinforcement):} a quantile critic feeds a
@@ -666,7 +677,8 @@ spectrograms with a supervised objective, so that the cell-level error rates
 $\Pmd(\thr),\Pfa(\thr)$ of Assumption~\ref{as:cellerror} are stable; the
 access tier then learns against an approximately stationary observation
 channel. This mirrors the decoupled offline/online structure that is known
-to accelerate POMDP learning when the observation model is fixed.
+to accelerate partially observed Markov decision process (POMDP) learning
+when the observation model is fixed.
 
 \subsection{Sensing Tier: Belief-Map Generation}
 \label{subsec:sensing_tier}
@@ -678,7 +690,7 @@ region proposal network, which couples poorly to continuous, arbitrary
 bandwidths~\cite{zhao2024uav}; when emissions overlap, a transformer backbone
 that exploits TF correlation further improves
 robustness~\cite{zhao2025trtfl_ssl}. The key departure from prior
-TF-localization work is that we do \emph{not} apply non-maximum suppression
+TF-localization work is that we do \emph{not} apply NMS
 to collapse the heatmap into hard boxes; instead the soft per-cell confidence
 is retained as the belief map $\belmap\in[0,1]^{\Nf\times\Nt}$. This
 preserves exactly the uncertainty that Theorem~\ref{thm:tradeoff} and the
@@ -700,22 +712,24 @@ maps. The belief map is a two-dimensional TF object, so we encode it with a
 spatial shape of emissions (their TF extent), while a point-wise linear
 recurrent unit (LRU) along the time axis captures the long-range correlation
 of PU on/off dynamics, producing a compact latent state
-$\bm{z}_t = \mathrm{Enc}(\state_t)$. We adopt an LRU rather than an LSTM or a
-Transformer because recent evidence shows point-wise recurrent state-space
+$\bm{z}_t = \mathrm{Enc}(\state_t)$. We adopt an LRU rather than a long
+short-term memory (LSTM) network or a Transformer because recent evidence
+shows point-wise recurrent state-space
 models outperform attention on partially observable RL while remaining
 parallelizable and lightweight~\cite{lu2024rethinking,morad2025cae}. The
 recurrent encoding plays the role of the belief-update / sufficient-statistic
-recursion of a POMDP. We ablate this choice (LRU vs. ConvLSTM) in
-Section~\ref{sec:simulation}.
+recursion of a POMDP. We ablate this choice (LRU vs.\ convolutional LSTM,
+ConvLSTM) in Section~\ref{sec:simulation}.
 
 \subsection{Access Tier: Continuous Resource Selection}
 \label{subsec:access_tier}
 The access tier maps the latent state to the resource-block action
 \eqref{eq:action}. We consider two instantiations:
 \begin{itemize}
-\item a value-based agent over a discretized action grid (deep $Q$-network~\cite{hausknecht2015drqn}
+\item a value-based agent over a discretized action grid (DQN~\cite{hausknecht2015drqn}
 on $\bm{z}_t$), suitable when the TF action set is coarsely quantized; and
-\item a continuous-control agent (deterministic policy gradient~\cite{lillicrap2016ddpg}) that
+\item a continuous-control agent (deep deterministic policy gradient,
+DDPG~\cite{lillicrap2016ddpg}) that
 outputs $(\afc,\aBW,\ats,\adur,\pwr)$ directly, suitable for fine-grained
 continuous resource selection.
 \end{itemize}
@@ -903,11 +917,12 @@ per-cell miss and false-alarm rates satisfy
 \end{equation}
 where $\rmd,\rfa$ are the residual detection errors of a perfectly localized
 interval---the contribution of the \emph{confidence threshold} $\thr$ alone,
-i.e.\ where the soft score is cut---and $\cmd,\cfa>0$ are geometry
+i.e.,\ where the soft score is cut---and $\cmd,\cfa>0$ are geometry
 constants scaling the \emph{localization} contribution. Thus tightening the
 frequency localization (higher IoU, smaller $\eloc$) lowers both cell-level
 error floors, and adjusting $\thr$ trades $\Pmd$ against $\Pfa$ along the
-residual ROC. Temporal-support error does not appear: it is absorbed by the
+residual receiver operating characteristic (ROC). Temporal-support error does
+not appear: it is absorbed by the
 frame alignment shared between the sensing and access phases.
 \end{assumption}
 
@@ -924,7 +939,7 @@ $\thr$: $\Pmd$ is non-decreasing and $\Pfa$ is non-increasing in $\thr$.
 
 \begin{assumption}[Receiver operating characteristic]
 \label{as:roc}
-The detector admits a continuously differentiable ROC, i.e. there is a
+The detector admits a continuously differentiable ROC, i.e.,\ there is a
 differentiable, strictly decreasing function $\rho$ with
 $\Pmd = \rho(\Pfa)$ (equivalently the detection probability
 $P_{\mathrm{d}}=1-\Pmd$ is a concave, increasing function of $\Pfa$). This
@@ -948,7 +963,7 @@ retransmission penalty captured by $\kappa>0$.
 The throughput objective $\thru(\thr)=\bar r A_{\mathrm{idle}}(1-\Pfa(\thr))
 -\kappa\Pcol(\thr)$ is continuous and \emph{quasiconcave} in $\thr$ on
 $[0,1]$, so that its stationary point is a global maximizer. We restrict
-attention to ROC families for which this holds---e.g.\ those whose
+attention to ROC families for which this holds---e.g.,\ those whose
 $\Pfa(\thr)$ is convex and $\Pcol(\thr)$ concave (or both affine) over the
 operating range, giving a single-crossing first-order condition. This covers
 the central, near-linear regime of typical energy- and learning-based
@@ -991,8 +1006,8 @@ idle. The union bound over these $|\mathcal{O}(\act)|$ events, each of
 marginal probability $\Pmd(\thr)$ by Assumption~\ref{as:cellerror}, gives
 \eqref{eq:lem_collision_union} with no dependence assumption. Under
 conditional independence the no-collision probability factorizes as
-$(1-\Pmd)^{|\mathcal{O}(\act)|}$ (and the FKG inequality gives the same
-direction under positive association), yielding \eqref{eq:lem_collision};
+$(1-\Pmd)^{|\mathcal{O}(\act)|}$ (and the Fortuin--Kasteleyn--Ginibre (FKG)
+inequality gives the same direction under positive association), yielding \eqref{eq:lem_collision};
 the first-order expansion follows from $(1-x)^{k}=1-kx+o(x)$. We use the
 conservative form \eqref{eq:lem_collision_union} in the sequel, so no
 counterfactual quantity is required.
@@ -1086,7 +1101,7 @@ points, without the global-optimality claim.
 Let $\thru^{\circ}=\bar r A_{\mathrm{idle}}$ be the oracle throughput under
 perfect sensing ($\Pmd=\Pfa=0$). Then the throughput gap satisfies
 $\thru^{\circ}-\thru(\thr^{\star})\le
-\bar r A_{\mathrm{idle}}\Pfa(\thr^{\star})+\kappa\Pcolmax$, i.e. the loss is
+\bar r A_{\mathrm{idle}}\Pfa(\thr^{\star})+\kappa\Pcolmax$, i.e.,\ the loss is
 controlled linearly by the false-alarm rate at the operating point and by
 the admitted collision budget.
 \end{corollary}
@@ -1132,7 +1147,7 @@ the number of PU collisions over a window of $W$ consecutive access
 opportunities. Bursty interference---rare windows with many collisions---is
 exactly what a regulator penalizes and what a mean constraint misses. The
 distributional formulation of Section~\ref{subsec:dist_rl} replaces the mean
-constraint with a Conditional-Value-at-Risk (CVaR) constraint on this window
+constraint with a CVaR constraint on this window
 variable,
 \begin{equation}
 \begin{aligned}
@@ -1153,7 +1168,8 @@ measured in Section~\ref{sec:simulation} (Fig.~\ref{fig:cvartail}).
 The collision-window variable $\Zcol^{W}$ of \eqref{eq:collision_window} is
 defined over \emph{fixed-length, non-overlapping} windows of $W$ consecutive
 access opportunities, with $W$ a constant independent of the horizon. For
-every fixed $\thr$, $\Zcol^{W}(\thr)$ has a continuous CDF, and lowering
+every fixed $\thr$, $\Zcol^{W}(\thr)$ has a continuous cumulative
+distribution function (CDF), and lowering
 $\thr$ increases $\Zcol^{W}$ in the usual stochastic order (more missed
 detections produce stochastically more collisions per window).
 \end{assumption}
@@ -1168,7 +1184,7 @@ threshold is at least as conservative as the mean-feasible one,
 \label{eq:cvar_conservative}
 \end{equation}
 Moreover $\thrcvar\to\thr^{\star}$ as the collision return becomes
-deterministic (e.g.\ as the localizer sharpens or $\cvarcol\to1$).
+deterministic (e.g.,\ as the localizer sharpens or $\cvarcol\to1$).
 \end{theorem}
 
 \begin{IEEEproof}
@@ -1179,8 +1195,8 @@ tighter than the corresponding mean constraint. By
 Assumption~\ref{as:tailmono} both $\E[\Zcol^{W}(\thr)]$ and
 $\CVaR_{\cvarcol}[\Zcol^{W}(\thr)]$ are non-increasing in $\thr$, so each
 constraint defines an upper feasible interval; the tighter constraint has the
-larger left endpoint, giving $\thrcvar\ge\thr^{\star}$, i.e.\
-\eqref{eq:cvar_conservative}. As the window variable concentrates, the
+larger left endpoint, giving $\thrcvar\ge\thr^{\star}$, i.e.,~\eqref{eq:cvar_conservative}.
+As the window variable concentrates, the
 CVaR--mean gap $\to 0$ and the two intervals coincide, giving the limit.
 \end{IEEEproof}
 
@@ -1195,7 +1211,7 @@ first order
 {\bigl|\Pcol'(\thr^{\star})\bigr|},
 \label{eq:cvar_gap}
 \end{equation}
-i.e.\ the conservativeness margin scales with the collision tail spread
+i.e.,\ the conservativeness margin scales with the collision tail spread
 divided by the collision sensitivity. The associated throughput price is at
 most $\bar r A_{\mathrm{idle}}\,[\Pfa(\thrcvar)-\Pfa(\thr^{\star})]$. This is
 a local (first-order) estimate and is not claimed to hold globally.
@@ -1347,17 +1363,24 @@ clarifying which term improved localization can shrink.
 \section{Simulation Results}
 \label{sec:simulation}
 
-We evaluate six questions: (Q1) does the empirical operating point match the
+We evaluate nine questions: (Q1) does the empirical operating point match the
 optimal belief threshold predicted by Theorem~\ref{thm:tradeoff}; (Q2) does
 the continuous belief-map state confer the access-side advantage implied by
 Proposition~\ref{thm:sufficiency}; (Q3) does the distributional CVaR
 constraint reduce collision tail risk (Theorem~\ref{thm:cvar}); (Q4) what does
 each component (M1/M2/M3) contribute; (Q5) is access performance governed by
 \emph{frequency}- rather than temporal-localization accuracy, as the frame
-structure of Section~\ref{subsec:access} predicts; and (Q6) does sharper
+structure of Section~\ref{subsec:access} predicts; (Q6) does sharper
 frequency localization translate into better access, as predicted by the
-localization-error model \eqref{eq:loc_to_cell} and Corollary~\ref{cor:loc}?
-For Q5--Q6 we use a localization-aware variant of the environment in which the
+localization-error model \eqref{eq:loc_to_cell} and Corollary~\ref{cor:loc};
+(Q7) is the \emph{complete} error-propagation chain
+$\eloc\!\to\!(\Pmd,\Pfa)\!\to\!\Pcol\!\to\!\thru$ borne out at every link, not
+just its endpoints; (Q8) is the access advantage monotone in the
+\emph{information richness} of the state representation, as
+Proposition~\ref{thm:sufficiency} implies, rather than an artifact of feature
+engineering; and (Q9) does the belief-map advantage \emph{generalize} across
+stressed environments (traffic burstiness, PU density, and sensing SNR)?
+For Q5--Q9 we use a localization-aware variant of the environment in which the
 belief map is rendered from \emph{estimated PU frequency intervals} with a
 controllable IoU error, so that cell-level error is a consequence of
 localization geometry rather than postulated directly.
@@ -1370,8 +1393,8 @@ piecewise-stationary two-state Markov process. For the tail-risk study (Q3)
 we additionally inject occasional correlated activity bursts, so that the
 collision return has a genuine heavy tail rather than a degenerate one. The
 sensing tier is modeled by a soft belief generator whose cell-level scores
-follow a logistic-Gaussian observation model; its receiver operating
-characteristic is measured empirically (Fig.~\ref{fig:tradeoff}a) and is
+follow a logistic-Gaussian observation model; its ROC is measured empirically
+(Fig.~\ref{fig:tradeoff}a) and is
 smooth, concave, and monotone, satisfying
 Assumptions~\ref{as:cellerror}--\ref{as:roc}. The access agents share a common
 discrete resource-block action set ($3$ bandwidths $\times$ $16$ center
@@ -1390,8 +1413,9 @@ contribution of each component (state representation, risk constraint) is
 isolated under a matched action space and reproducible without specialized
 hardware. The mapping between Algorithm~\ref{alg:lajssa} and this realization
 is one-to-one at the level of the M1 (CVaR dual) and state-coarsening
-ablations; the full conv/LRU encoder and a GPU-scale, deep PPO/SAC/QR-DQN
-comparison are provided as a PyTorch release for the camera-ready (see
+ablations; the full conv/LRU encoder and a GPU-scale comparison against deep
+PPO, SAC, and quantile-regression deep-$Q$-network (QR-DQN) baselines are
+provided as a PyTorch release for the camera-ready (see
 Section~\ref{subsec:limitations}). We therefore report these results as
 evidence for the \emph{qualitative orderings} predicted by the theory, not as
 a final performance benchmark.
@@ -1579,7 +1603,7 @@ on frequency, not time. Error bars are $\pm$ one standard deviation.}
 The preceding experiments fix the localizer and vary the access side. We now
 do the converse, directly testing the TFL-grounded chain of
 Section~\ref{sec:theory}: we sweep the localizer quality, and for each level
-measure the mean frequency intersection-over-union (IoU) of its estimated
+measure the mean frequency IoU of its estimated
 intervals, the localization error $\eloc=1-\mathrm{IoU}$, the induced
 cell-level error $(\Pmd,\Pfa)$ at $\thr^\star$, and the resulting access
 throughput of a fixed greedy belief policy (so the sensing-to-access map is
@@ -1623,12 +1647,123 @@ Freq.\ vs.\ time: max collision & freq\,$\gg$\,time & $0.080$/$0.000$ & freq win
 \end{tabular}
 \end{table}
 
+\subsection{Q7: Full Sensing-Error Propagation Chain}
+\label{subsec:q7}
+Q6 verified the two end links of the theoretical chain
+($\eloc\!\to\!(\Pmd,\Pfa)$ and $\eloc\!\to\!$ throughput). We now validate the
+\emph{complete} chain of Section~\ref{sec:theory},
+\[
+\eloc \;\to\; (\Pmd,\Pfa) \;\to\; \Pcol \;\to\; \thru,
+\]
+end to end, including the intermediate collision link
+$\Pcol$ that Lemma~\ref{lem:collision} predicts. Sweeping the localizer quality
+as in Q6, Fig.~\ref{fig:errorchain} plots every link against the localization
+error $\eloc=1-\mathrm{IoU}$. All four links are essentially linear in
+$\eloc$, as Assumptions~\ref{as:localization}--\ref{as:cellerror} and
+Lemmas~\ref{lem:collision}--\ref{lem:throughput} require: the cell-level miss
+and false-alarm rates rise linearly (Pearson $r=0.994$ and $0.957$), the
+induced PU-collision probability $\Pcol$ rises linearly ($r=0.982$), and the
+access throughput falls---equivalently, the throughput gap rises---linearly
+($r=0.981$). The consistency of every link, not merely the endpoints,
+shows the theoretical modeling is structural rather than coincidental: each
+arrow of the chain is borne out quantitatively on the same sweep.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{figures/fig_error_chain.pdf}
+\caption{Full error-propagation consistency. As the localization error
+$\eloc=1-\mathrm{IoU}$ grows, every link of the chain
+$\eloc\!\to\!(\Pmd,\Pfa)\!\to\!\Pcol\!\to\!\thru$ moves linearly:
+\emph{(a)} cell-level $\Pmd,\Pfa$; \emph{(b)} PU-collision $\Pcol$;
+\emph{(c)} throughput; \emph{(d)} throughput gap. Dashed lines are linear
+fits with the Pearson $r$ annotated; error bars are $\pm$ one standard
+deviation over ten seeds.}
+\label{fig:errorchain}
+\end{figure}
+
+\subsection{Q8: Representation Richness vs.\ Feature Engineering}
+\label{subsec:q8}
+A natural objection to Proposition~\ref{thm:sufficiency} is whether the belief
+map is \emph{truly} necessary or merely better feature engineering. To separate
+the two, we hold the access \emph{rule}, environment, and action set fixed and
+vary \emph{only} the state representation along a single axis of increasing
+information richness: a binarized fixed grid at $K\in\{4,8,16\}$ channels, the
+full-resolution \emph{hard} occupancy vector ($\Nf=64$ thresholded cells, the
+$-$M2 representation), and the full-resolution \emph{soft} belief map (ours).
+Every representation is consumed by the \emph{same} one-step
+reward-maximizing access rule (treating the representation as an occupancy
+probability and maximizing the reward \eqref{eq:reward}), so the experiment
+isolates the information each representation preserves from any learning
+dynamics. Fig.~\ref{fig:representation} shows that the access objective improves
+\emph{monotonically} with information richness: the per-step reward
+\eqref{eq:reward} rises and the PU-collision rate falls as the representation
+is refined, with the soft belief map at the top of the ordering (Spearman rank
+correlation $+1.00$ between richness and reward, and $+1.00$
+between richness and $-$collision). The collision rate drops from
+$0.18$ for the coarse $K{=}4$ grid to $0.004$ for the soft belief
+map---over an order of magnitude. Because the only thing that changes is how
+much occupancy information the state retains, the gain is attributable to the
+representation, not to incidental feature engineering: a coarsening of the
+belief can only lose value, exactly as the information-refinement argument of
+Proposition~\ref{thm:sufficiency} predicts.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.92\columnwidth]{figures/fig_representation.pdf}
+\caption{Representation-richness ablation under a matched access rule,
+environment, and action set. The access reward \eqref{eq:reward} (left axis)
+rises and the PU-collision rate (right axis) falls monotonically as the state
+is refined from a coarse $K{=}4$ grid to the full-resolution soft belief map,
+isolating the value of the information the representation preserves
+(Proposition~\ref{thm:sufficiency}). Error bars are $\pm$ one standard
+deviation over twelve seeds.}
+\label{fig:representation}
+\end{figure}
+
+\subsection{Q9: Cross-Environment Robustness}
+\label{subsec:q9}
+To test whether the belief-map advantage is specific to the nominal synthetic
+instance, we stress the environment along the three axes that most affect a
+wideband DSA system and re-evaluate the proposed soft belief map against the
+prior-work fixed-channel grid~\cite{wang2018} under the \emph{same}
+reward-greedy access rule and action set used in Q8: \emph{(A) traffic}---nominal
+piecewise-stationary Markov activity vs.\ correlated heavy-tail \emph{bursts};
+\emph{(B) spectrum geometry}---\emph{sparse} (one PU), nominal (three), and
+\emph{dense} (six overlapping PUs); and \emph{(C) channel}---\emph{low-} and
+\emph{high-SNR} sensing in addition to the nominal setting.
+Fig.~\ref{fig:robustness} reports the access reward \eqref{eq:reward} and the
+PU-collision rate across all six regimes for the full-resolution soft belief map
+against the binarized $K{=}8$ grid. The belief map attains a higher access
+reward in every one of the six regimes and a lower-or-equal collision rate in
+all of them, so the structural advantage predicted by
+Proposition~\ref{thm:sufficiency} is not an artifact of one configuration: it
+persists across traffic burstiness, PU density, and sensing quality. The gap is
+largest in the \emph{dense} and \emph{bursty} regimes, where a coarse
+fixed-channel state most often straddles a PU boundary or misses a sudden
+co-activation---the very misalignment mechanism quantified in
+Example~\ref{ex:strictgap}.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{figures/fig_robustness.pdf}
+\caption{Cross-environment robustness. \emph{(a)} Access reward
+\eqref{eq:reward} and \emph{(b)} PU-collision rate of the proposed soft belief
+map vs.\ the prior-work fixed-channel grid~\cite{wang2018}, under a matched
+reward-greedy access rule, across six stress regimes spanning traffic
+burstiness, PU density, and SNR. The belief-map advantage (higher reward, lower
+collision) persists in every regime. Error bars are $\pm$ one standard
+deviation over twelve seeds.}
+\label{fig:robustness}
+\end{figure}
+
 \subsection{Discussion and Limitations}
 \label{subsec:limitations}
 The trade-off prediction (Q1) is confirmed crisply, the CVaR study (Q3) and
 ablation (Q4) support the design (M2/M3 govern mean throughput and collision,
-M1 the tail), and Q5/Q6 confirm the localization-to-access chain. Three
-limitations bound how far the present evidence reaches.
+M1 the tail), Q5--Q7 confirm the localization-to-access chain at every link,
+Q8 shows the access objective is monotone in representation richness, and Q9
+shows the belief-map advantage survives traffic, geometry, and SNR stress.
+Three limitations bound how far the present evidence reaches.
 
 \emph{Scale and statistics.} As noted in the setup, the agents are a compact
 CPU realization, not the full conv-frequency/LRU encoder, and at ten seeds the
@@ -1641,9 +1776,12 @@ safety layer, for which we release a GPU-ready PyTorch implementation.
 \emph{Synthetic environment.} The detector ROC and PU process are parametric,
 constructed to \emph{isolate} the modeling assumptions rather than to flatter
 the method; they should be read as checking the theory's structural
-assumptions and predictions for mutual consistency on a controlled instance,
-not as evidence they hold on real hardware. Validation on captured wideband
-data is left to future work.
+assumptions and predictions for mutual consistency on a controlled instance.
+The robustness suite (Q9) widens this check across traffic, geometry, and SNR
+regimes, so the conclusions are not tied to a single configuration; it does
+not, however, substitute for measured data. Validation on captured wideband
+data---where the localizer ROC and PU statistics are empirical rather than
+parametric---is left to future work.
 
 \emph{Theory--experiment scope.} The regret result
 (Proposition~\ref{thm:regret}) analyzes a tabular surrogate, not the deep agent
@@ -1657,21 +1795,26 @@ directly reflected in Q1 and Q4.
 \section{Conclusion}
 \label{sec:conclusion}
 
-We introduced LA-JSSA, which closes the loop between TF localization and
+We introduced Localization-Aware Joint Spectrum Sensing and Access (LA-JSSA),
+which closes the loop between time--frequency (TF) localization and
 spectrum access by letting a continuous occupancy belief map drive the access
-policy, in place of the fixed-channel state assumed throughout the DRL-DSA
+policy, in place of the fixed-channel state assumed throughout the
+deep-reinforcement-learning--based dynamic spectrum access (DRL-DSA)
 literature. We derived how localization error propagates to collision and
 throughput, characterized the operating point via a three-way trade-off
 (Theorem~\ref{thm:tradeoff}), showed the belief-state representation is no
 worse than a coarser fixed-channel one (Proposition~\ref{thm:sufficiency}),
-and introduced a risk-sensitive (CVaR) access formulation whose operating
-point is provably at least as conservative as the mean-constrained one
+and introduced a risk-sensitive conditional value-at-risk (CVaR) access
+formulation whose operating point is provably at least as conservative as the
+mean-constrained one
 (Theorem~\ref{thm:cvar}). For a tabular surrogate, a stylized regret analysis
 separates a vanishing learning term from a policy-independent sensing gap
 (Proposition~\ref{thm:regret}). Future work includes large-scale evaluation with
-the full conv-frequency/LRU encoder, more seeds and stronger constrained-RL
-baselines under matched state and action spaces, validation on measured
-captures, the multi-SU multi-agent extension on the continuous TF plane, and
+the full conv-frequency/linear-recurrent-unit (LRU) encoder, more seeds and
+stronger constrained reinforcement-learning (RL) baselines under matched state
+and action spaces, validation on measured captures, the
+multiple-secondary-user (multi-SU) multi-agent extension on the continuous TF
+plane, and
 regret analysis that more directly targets the deep, function-approximating
 agent.
 \appendices

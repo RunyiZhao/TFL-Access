@@ -139,6 +139,12 @@ def main():
     sh(f"{PY} run_freq_vs_time.py")
     # Q6: localization sweep
     sh(f"{PY} run_localization_sweep.py")
+    # Q7: full sensing-error propagation chain (eps_loc->Pmd/Pfa->Pcol->thru)
+    sh(f"{PY} run_error_chain.py")
+    # Q8: representation-richness ablation (soft vs binary vs grid)
+    sh(f"{PY} run_representation.py")
+    # Q9: cross-environment robustness stress suite
+    sh(f"{PY} run_robustness.py")
 
     # Render every figure in TWC style + assemble Table III
     sh(f"{PY} make_figures.py")
@@ -147,7 +153,8 @@ def main():
     print("\n" + "=" * 60)
     print("ALL DONE. Figures (600-dpi vector PDF, TWC style) in ../figures/:")
     for f in ["fig_tradeoff", "fig_baselines", "fig_cvar_tail",
-              "fig_ablation", "fig_freq_vs_time", "fig_localization"]:
+              "fig_ablation", "fig_freq_vs_time", "fig_localization",
+              "fig_error_chain", "fig_representation", "fig_robustness"]:
         p = os.path.join(FIG, f + ".pdf")
         print(f"  {'OK ' if os.path.exists(p) else 'MISS'} {f}.pdf")
     print("Tables: baselines_table_rows.tex (Table II), "

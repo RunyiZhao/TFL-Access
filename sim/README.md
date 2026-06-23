@@ -46,6 +46,9 @@ sim/
   combine_ablation.py     # Q4: aggregate cached ablation -> figure
   run_freq_vs_time.py     # Q5: frequency- vs temporal-localization sensitivity
   run_localization_sweep.py # Q6: localization accuracy (IoU) -> access
+  run_error_chain.py      # Q7: full chain eps_loc->Pmd/Pfa->Pcol->throughput
+  run_representation.py   # Q8: representation richness (soft vs binary vs grid)
+  run_robustness.py       # Q9: cross-environment robustness (traffic/geometry/SNR)
   torch_baselines.py      # GPU-ready PyTorch PPO/SAC/QR-DQN (camera-ready scale-up)
 ```
 
@@ -65,6 +68,9 @@ sim/
 | Fig. (ablation), Q4             | see "Ablation" below                       | `figures/fig_ablation.pdf` |
 | Fig. (freq vs time), Q5         | `python run_freq_vs_time.py`              | `figures/fig_freq_vs_time.pdf` |
 | Fig. (localization), Q6, Table III | `python run_localization_sweep.py`      | `figures/fig_localization.pdf`, `localization_sweep.npz` |
+| Fig. (error chain), Q7          | `python run_error_chain.py`               | `figures/fig_error_chain.pdf`, `error_chain.npz` |
+| Fig. (representation), Q8       | `python run_representation.py`            | `figures/fig_representation.pdf`, `representation.npz` |
+| Fig. (robustness), Q9          | `python run_robustness.py`                | `figures/fig_robustness.pdf`, `robustness.npz` |
 
 All scripts write PDFs and `.npz` data into `../figures/`. To re-style every
 figure from cached data without re-running experiments:

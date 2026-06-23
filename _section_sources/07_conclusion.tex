@@ -2,20 +2,25 @@
 \section{Conclusion}
 \label{sec:conclusion}
 
-We introduced LA-JSSA, which closes the loop between TF localization and
+We introduced Localization-Aware Joint Spectrum Sensing and Access (LA-JSSA),
+which closes the loop between time--frequency (TF) localization and
 spectrum access by letting a continuous occupancy belief map drive the access
-policy, in place of the fixed-channel state assumed throughout the DRL-DSA
+policy, in place of the fixed-channel state assumed throughout the
+deep-reinforcement-learning--based dynamic spectrum access (DRL-DSA)
 literature. We derived how localization error propagates to collision and
 throughput, characterized the operating point via a three-way trade-off
 (Theorem~\ref{thm:tradeoff}), showed the belief-state representation is no
 worse than a coarser fixed-channel one (Proposition~\ref{thm:sufficiency}),
-and introduced a risk-sensitive (CVaR) access formulation whose operating
-point is provably at least as conservative as the mean-constrained one
+and introduced a risk-sensitive conditional value-at-risk (CVaR) access
+formulation whose operating point is provably at least as conservative as the
+mean-constrained one
 (Theorem~\ref{thm:cvar}). For a tabular surrogate, a stylized regret analysis
 separates a vanishing learning term from a policy-independent sensing gap
 (Proposition~\ref{thm:regret}). Future work includes large-scale evaluation with
-the full conv-frequency/LRU encoder, more seeds and stronger constrained-RL
-baselines under matched state and action spaces, validation on measured
-captures, the multi-SU multi-agent extension on the continuous TF plane, and
+the full conv-frequency/linear-recurrent-unit (LRU) encoder, more seeds and
+stronger constrained reinforcement-learning (RL) baselines under matched state
+and action spaces, validation on measured captures, the
+multiple-secondary-user (multi-SU) multi-agent extension on the continuous TF
+plane, and
 regret analysis that more directly targets the deep, function-approximating
 agent.

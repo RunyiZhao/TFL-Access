@@ -2,9 +2,9 @@
 \section{System Model and Problem Formulation}
 \label{sec:system_model}
 
-We consider a single secondary user (SU) opportunistically accessing a
+We consider a single SU opportunistically accessing a
 wideband spectrum of bandwidth $\Wband$ centered at $\fc$, which is
-shared by an \emph{unknown and time-varying} number of primary-user (PU)
+shared by an \emph{unknown and time-varying} number of PU
 emissions. Such a setting arises in shared bands such as CBRS, where
 incumbents select center frequencies and bandwidths adaptively rather than on
 a fixed channel grid~\cite{sohul2015cbrs,xing2007dsa}. Unlike the
@@ -57,7 +57,7 @@ $\bigT_{\mathrm{f}}$ is the frame length. The signal is sampled at rate
 $\fs \ge \Wband$.
 
 Applying the short-time Fourier transform (STFT) operator $\STFT$ yields a
-single-resolution time--frequency (TF) representation; we work with the
+single-resolution TF representation; we work with the
 magnitude spectrogram
 \begin{equation}
 \spec \;=\; \bigl|\STFT\{\rx\}\bigr| \;\in\; \R_{\ge 0}^{\,\Nf \times \Nt},
@@ -66,8 +66,8 @@ magnitude spectrogram
 discretized into $\Nf$ frequency bins and $\Nt$ time bins. We index an
 individual TF \emph{cell} by $\cell$, $m\in\{1,\dots,\Nf\}$,
 $n\in\{1,\dots,\Nt\}$. The STFT is preferred over variable-resolution
-transforms (CWT/CQT) because spectrum monitoring weights all frequencies
-equally~\cite{prasad2020}.
+transforms (the continuous wavelet transform or constant-$Q$ transform)
+because spectrum monitoring weights all frequencies equally~\cite{prasad2020}.
 
 \subsection{Continuous Occupancy Representation}
 \label{subsec:occupancy}
@@ -76,7 +76,7 @@ Each PU emission $k$ is described by a continuous TF \emph{box}
 \boxk_k \;=\; \bigl(\bfc_k,\, \bBW_k,\, \bts_k,\, \bdur_k\bigr),
 \label{eq:box}
 \end{equation}
-i.e. center frequency, bandwidth, start time, and duration. The box maps to
+i.e.,\ center frequency, bandwidth, start time, and duration. The box maps to
 a region $\mathcal{B}_k \subset \{1,\dots,\Nf\}\times\{1,\dots,\Nt\}$ of the
 discretized TF plane. The \emph{true occupancy map} is the binary matrix
 $\occmap\in\{0,1\}^{\Nf\times\Nt}$ with
@@ -114,9 +114,9 @@ time--frequency localizer rasterized onto the cell grid: each estimated
 emission box carries a confidence score, and $\bel_{m,n}$ is the (edge-feathered)
 score of the box covering cell $(m,n)$, or a low background value where no box
 is predicted. We deliberately retain this \emph{soft} confidence $\belmap$
-rather than applying non-maximum suppression to obtain hard boxes; this
+rather than applying NMS to obtain hard boxes; this
 preserves the sensing uncertainty that the access stage will exploit
-(cf. Section~\ref{sec:framework}). The reliability of $\phi_{\mathrm{sen}}$
+(cf.\ Section~\ref{sec:framework}). The reliability of $\phi_{\mathrm{sen}}$
 is characterized at the cell level by the miss-detection and false-alarm
 probabilities
 \begin{align}
@@ -129,7 +129,8 @@ where $\thr\in[0,1]$ is a decision threshold applied to the localizer's
 confidence $\bel_{m,n}$. Two distinct factors shape $(\Pmd,\Pfa)$: the
 \emph{confidence threshold} $\thr$ (where we cut the soft score) and the
 \emph{geometric accuracy} of the box (how well its frequency support matches
-the true emission, quantified later by the IoU error $\eloc$). The
+the true emission, quantified later by the intersection-over-union (IoU)
+error $\eloc$). The
 operating-point analysis of Theorem~\ref{thm:tradeoff} optimizes over $\thr$,
 while the localization-error model of Assumption~\ref{as:localization}
 captures the geometric contribution; their separation is made explicit in the
@@ -164,14 +165,15 @@ A \emph{collision} occurs when the SU block overlaps an occupied cell:
 \label{eq:collision}
 \end{equation}
 where $\mathcal{A}(\act)$ is the set of TF cells covered by action $\act$.
-Transmission succeeds (yielding an ACK) iff $\mathrm{Col}(\act)=0$ and the
+Transmission succeeds (yielding an acknowledgment, ACK) iff $\mathrm{Col}(\act)=0$ and the
 allocated bandwidth meets the demand.
 
 \subsection{Partially Observed Control Formulation}
 \label{subsec:pomdp}
 The SU never observes the true occupancy $\occmap$ directly; it observes only
 the wideband spectrogram $\spec_t$ and, after transmitting, a one-bit
-ACK/NACK. The control problem is therefore partially observed. We make the
+ACK or negative-acknowledgment (NACK). The control problem is therefore
+partially observed. We make the
 roles explicit to avoid conflating the detector output with a Bayesian
 belief.
 
